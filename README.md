@@ -1,7 +1,7 @@
 # Crazy Bob 🤪
 
 Private local AI chat that runs entirely in your browser using WebLLM + WebGPU.  
-No cloud. No API keys. Works on iPhone (Safari 26+).
+No cloud required for chat. Optional free API keys unlock richer web search. Works on iPhone (Safari 26+).
 
 ## Features
 
@@ -10,8 +10,16 @@ No cloud. No API keys. Works on iPhone (Safari 26+).
   - **Planner** – analyses & plans
   - **Writer** – drafts letters / advice
   - **Reviewer** – polishes the final result
+- **Voice conversation** – tap the mic 🎤 to talk; Crazy Bob can speak replies out loud
+- **Voice settings** – choose system voice, speaking speed, and listening language (⚙️ button)
+- **Online tools** (need internet):
+  - 📰 Multi-source news (BBC, Reuters, NPR)
+  - 🔍 Research a topic (Wikipedia + DuckDuckGo Instant Answer)
+  - 🌐 Web search (optional free API keys: Serper or Tavily)
+  - 🌤️ Weather (Open-Meteo, any city)
+- **Optional API keys** in Settings for richer web search (keys stored only on this device)
 - **Persistent chat history** – conversations are saved on the phone (IndexedDB) so Bob remembers past chats
-- Fully offline after the first model download
+- Fully offline after the first model download (voice uses the device’s built-in speech engines)
 - Installable as a Home Screen app on iPhone
 - Clear history button (trash icon) if you want to wipe saved chats
 
@@ -45,6 +53,9 @@ https://YOUR-USERNAME.github.io/crazy-bob/
 3. It appears as **Crazy Bob** with the crazy face icon.
 4. Choose a model (Llama 3.2 1B recommended) → **Load**.
 5. Switch to **Team** mode if you want the three agents.
+6. Tap **⚙️** to pick a voice, turn “Crazy Bob talks back” on/off, and optionally paste free Serper or Tavily API keys for web search.
+7. Tap the **🎤** mic button, speak, then Bob will reply (and speak if enabled). Allow microphone access when Safari asks.
+8. Use the chips for news, research, web search, or weather.
 
 ## Memory notes
 

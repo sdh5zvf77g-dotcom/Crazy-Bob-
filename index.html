@@ -197,6 +197,51 @@
     }
     #sendBtn:disabled { background: var(--surface2); color: var(--text-muted); }
 
+    #micBtn {
+      width: 44px; height: 44px; border-radius: 50%; background: var(--surface2);
+      color: var(--text-muted); border: 1px solid var(--border); display: flex;
+      align-items: center; justify-content: center; flex-shrink: 0; font-size: 18px;
+    }
+    #micBtn:disabled { opacity: 0.45; }
+    #micBtn.listening {
+      background: var(--danger); color: white; border-color: var(--danger);
+      animation: pulse 1.2s infinite;
+    }
+    #micBtn.speaking {
+      background: var(--success); color: white; border-color: var(--success);
+    }
+
+    /* Settings form */
+    .settings-row {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; margin-bottom: 14px; font-size: 14px;
+    }
+    .settings-row label { color: var(--text); flex: 1; }
+    .settings-row select {
+      flex: 1.2; min-width: 0; font-size: 13px; padding: 8px 28px 8px 10px;
+    }
+    .toggle {
+      position: relative; width: 48px; height: 28px; flex-shrink: 0;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle .slider {
+      position: absolute; cursor: pointer; inset: 0;
+      background: var(--surface2); border-radius: 28px; border: 1px solid var(--border);
+      transition: 0.2s;
+    }
+    .toggle .slider:before {
+      content: ""; position: absolute; height: 20px; width: 20px;
+      left: 3px; bottom: 3px; background: var(--text-muted);
+      border-radius: 50%; transition: 0.2s;
+    }
+    .toggle input:checked + .slider { background: var(--accent); border-color: var(--accent); }
+    .toggle input:checked + .slider:before {
+      transform: translateX(20px); background: #0f172a;
+    }
+    .settings-hint {
+      font-size: 12px; color: var(--text-muted); margin: -6px 0 14px; line-height: 1.35;
+    }
+
     .quick-actions {
       display: none; gap: 8px; padding: 0 16px 10px; overflow-x: auto;
       -webkit-overflow-scrolling: touch; scrollbar-width: none;
@@ -265,6 +310,7 @@
       </div>
     </div>
     <div class="header-actions">
+      <button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">⚙️</button>
       <button class="icon-btn" id="clearBtn" title="Clear chat history" aria-label="Clear chat">🗑️</button>
     </div>
   </header>
@@ -299,7 +345,7 @@
     <div class="welcome" id="welcome">
       <img src="apple-touch-icon.png" alt="Crazy Bob" width="72" height="72" style="border-radius:16px;margin-bottom:12px;" />
       <h2>Crazy Bob</h2>
-      <p>Your slightly unhinged local AI. Chats are saved on your phone. He can also pull <strong>today's news</strong> and <strong>research topics</strong> online when needed.</p>
+      <p>Your slightly unhinged local AI. Chats are saved on your phone. He can pull <strong>news</strong>, <strong>research</strong>, <strong>web search</strong> and <strong>weather</strong> online. Add free API keys in ⚙️ for better web results.</p>
       <div class="agents-row">
         <div class="agent-card planner">
           <div class="name">Planner</div>
@@ -325,10 +371,13 @@
     <div class="chip" data-prompt="Give me clear step-by-step advice on this situation.">Step-by-step advice</div>
     <div class="chip chip-online" id="newsChip">📰 Today's news</div>
     <div class="chip chip-online" id="researchChip">🔍 Research a topic</div>
+    <div class="chip chip-online" id="webSearchChip">🌐 Search the web</div>
+    <div class="chip chip-online" id="weatherChip">🌤️ Weather</div>
   </div>
 
   <div class="input-area">
     <textarea id="userInput" placeholder="Describe a problem or ask for a letter…" rows="1" disabled></textarea>
+    <button id="micBtn" disabled title="Talk to Crazy Bob" aria-label="Voice input">🎤</button>
     <button id="sendBtn" disabled>↑</button>
   </div>
 
@@ -340,6 +389,81 @@
       <div class="modal-actions">
         <button class="btn-secondary" id="cancelClear">Cancel</button>
         <button class="btn-danger" id="confirmClear">Clear everything</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings modal -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal" style="max-width:380px; max-height:85vh; overflow-y:auto;">
+      <h3>Settings</h3>
+      <div class="settings-row">
+        <label for="autoSpeak">Crazy Bob talks back</label>
+        <label class="toggle">
+          <input type="checkbox" id="autoSpeak" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+      <p class="settings-hint">When on, Bob speaks his replies out loud after generating them.</p>
+
+      <div class="settings-row">
+        <label for="voiceSelect">Voice</label>
+        <select id="voiceSelect">
+          <option value="">Loading voices…</option>
+        </select>
+      </div>
+      <p class="settings-hint">Pick a system voice. Availability depends on your device & language packs.</p>
+
+      <div class="settings-row">
+        <label for="speechRate">Speaking speed</label>
+        <select id="speechRate">
+          <option value="0.85">Slow</option>
+          <option value="1" selected>Normal</option>
+          <option value="1.2">Fast</option>
+          <option value="1.4">Very fast</option>
+        </select>
+      </div>
+
+      <div class="settings-row">
+        <label for="recogLang">Listening language</label>
+        <select id="recogLang">
+          <option value="en-US" selected>English (US)</option>
+          <option value="en-GB">English (UK)</option>
+          <option value="en-AU">English (AU)</option>
+          <option value="th-TH">Thai</option>
+          <option value="es-ES">Spanish</option>
+          <option value="fr-FR">French</option>
+          <option value="de-DE">German</option>
+          <option value="ja-JP">Japanese</option>
+          <option value="zh-CN">Chinese (Simplified)</option>
+        </select>
+      </div>
+      <p class="settings-hint">Language used when you speak into the mic. Requires mic permission.</p>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:16px 0;">
+
+      <h3 style="font-size:15px;margin-bottom:10px;">Online search (optional)</h3>
+      <p class="settings-hint" style="margin-bottom:12px;">
+        Without keys Bob uses Wikipedia + free news feeds. Add a free API key for real web search results.
+        Keys are stored <strong>only on this device</strong>.
+      </p>
+
+      <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:6px;">
+        <label for="serperKey">Serper.dev API key <span style="color:var(--text-muted);font-weight:400;">(2,500 free)</span></label>
+        <input type="password" id="serperKey" placeholder="Paste key from serper.dev" autocomplete="off"
+          style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;">
+      </div>
+      <p class="settings-hint">Get a free key at <a href="https://serper.dev" target="_blank" rel="noopener" style="color:var(--accent);">serper.dev</a> — no card needed.</p>
+
+      <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:6px;margin-top:10px;">
+        <label for="tavilyKey">Tavily API key <span style="color:var(--text-muted);font-weight:400;">(1,000/mo free)</span></label>
+        <input type="password" id="tavilyKey" placeholder="Paste key from tavily.com" autocomplete="off"
+          style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;">
+      </div>
+      <p class="settings-hint">Great for AI — get free key at <a href="https://tavily.com" target="_blank" rel="noopener" style="color:var(--accent);">tavily.com</a>.</p>
+
+      <div class="modal-actions" style="margin-top:18px;">
+        <button class="btn-secondary" id="closeSettings">Done</button>
       </div>
     </div>
   </div>
@@ -448,6 +572,26 @@
       });
     }
 
+    async function getMeta(key, fallback = null) {
+      const db = await openDB();
+      return new Promise((resolve) => {
+        const tx = db.transaction(STORE_META, "readonly");
+        const req = tx.objectStore(STORE_META).get(key);
+        req.onsuccess = () => resolve(req.result ? req.result.value : fallback);
+        req.onerror = () => resolve(fallback);
+      });
+    }
+
+    async function setMeta(key, value) {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_META, "readwrite");
+        tx.objectStore(STORE_META).put({ key, value });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
     // ---------- DOM ----------
     const chatEl = document.getElementById("chat");
     const welcomeEl = document.getElementById("welcome");
@@ -467,12 +611,206 @@
     const clearModal = document.getElementById("clearModal");
     const cancelClear = document.getElementById("cancelClear");
     const confirmClear = document.getElementById("confirmClear");
+    const settingsBtn = document.getElementById("settingsBtn");
+    const settingsModal = document.getElementById("settingsModal");
+    const closeSettings = document.getElementById("closeSettings");
+    const micBtn = document.getElementById("micBtn");
+    const autoSpeakEl = document.getElementById("autoSpeak");
+    const voiceSelect = document.getElementById("voiceSelect");
+    const speechRateEl = document.getElementById("speechRate");
+    const recogLangEl = document.getElementById("recogLang");
+    const serperKeyEl = document.getElementById("serperKey");
+    const tavilyKeyEl = document.getElementById("tavilyKey");
 
     let engine = null;
     let isGenerating = false;
     let mode = "single";
     let messages = []; // { role, content, agent? }
     let userName = null; // remembered name
+
+    // Voice / speech state
+    let autoSpeak = true;
+    let selectedVoiceURI = "";
+    let speechRate = 1;
+    let recogLang = "en-US";
+    let recognition = null;
+    let isListening = false;
+    let voicesLoaded = false;
+
+    // Optional search API keys (stored locally only)
+    let serperKey = "";
+    let tavilyKey = "";
+
+    // ---------- Speech synthesis (Bob talks) ----------
+    function stopSpeaking() {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      micBtn?.classList.remove("speaking");
+    }
+
+    function speakText(text) {
+      if (!autoSpeak || !text || !window.speechSynthesis) return;
+      stopSpeaking();
+      // Clean markdown-ish noise for speech
+      const clean = text
+        .replace(/```[\s\S]*?```/g, " code block ")
+        .replace(/`([^`]+)`/g, "$1")
+        .replace(/[*_#~>]+/g, "")
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!clean) return;
+
+      const utter = new SpeechSynthesisUtterance(clean);
+      utter.rate = speechRate;
+      utter.pitch = 1;
+      const voices = window.speechSynthesis.getVoices();
+      if (selectedVoiceURI) {
+        const v = voices.find(v => v.voiceURI === selectedVoiceURI);
+        if (v) utter.voice = v;
+      }
+      utter.onstart = () => micBtn?.classList.add("speaking");
+      utter.onend = () => micBtn?.classList.remove("speaking");
+      utter.onerror = () => micBtn?.classList.remove("speaking");
+      window.speechSynthesis.speak(utter);
+    }
+
+    function populateVoices() {
+      if (!window.speechSynthesis) {
+        voiceSelect.innerHTML = '<option value="">Speech not supported</option>';
+        return;
+      }
+      const voices = window.speechSynthesis.getVoices();
+      if (!voices.length) return;
+      voicesLoaded = true;
+      const prev = selectedVoiceURI || voiceSelect.value;
+      voiceSelect.innerHTML = "";
+      // Prefer English voices first, then others
+      const sorted = [...voices].sort((a, b) => {
+        const aEn = a.lang.startsWith("en") ? 0 : 1;
+        const bEn = b.lang.startsWith("en") ? 0 : 1;
+        if (aEn !== bEn) return aEn - bEn;
+        return a.name.localeCompare(b.name);
+      });
+      for (const v of sorted) {
+        const opt = document.createElement("option");
+        opt.value = v.voiceURI;
+        opt.textContent = `${v.name} (${v.lang})${v.default ? " · default" : ""}`;
+        voiceSelect.appendChild(opt);
+      }
+      if (prev && [...voiceSelect.options].some(o => o.value === prev)) {
+        voiceSelect.value = prev;
+      } else if (voiceSelect.options.length) {
+        // Try to pick a good default English voice
+        const preferred = sorted.find(v => /samantha|karen|moira|daniel|alex|google.*english|microsoft.*(aria|guy|jenny)/i.test(v.name))
+          || sorted.find(v => v.lang.startsWith("en") && v.default)
+          || sorted.find(v => v.lang.startsWith("en"))
+          || sorted[0];
+        if (preferred) {
+          voiceSelect.value = preferred.voiceURI;
+          selectedVoiceURI = preferred.voiceURI;
+        }
+      }
+    }
+
+    // ---------- Speech recognition (you talk) ----------
+    function setupRecognition() {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) {
+        micBtn.title = "Speech recognition not supported in this browser";
+        return null;
+      }
+      const rec = new SR();
+      rec.continuous = false;
+      rec.interimResults = true;
+      rec.maxAlternatives = 1;
+      rec.lang = recogLang;
+
+      rec.onstart = () => {
+        isListening = true;
+        micBtn.classList.add("listening");
+        micBtn.title = "Listening… tap to stop";
+        stopSpeaking();
+      };
+      rec.onend = () => {
+        isListening = false;
+        micBtn.classList.remove("listening");
+        micBtn.title = "Talk to Crazy Bob";
+        if (userInput.placeholder.endsWith("…") && userInput.placeholder !== "Describe a problem or ask for a letter…") {
+          userInput.placeholder = "Describe a problem or ask for a letter…";
+        }
+      };
+      rec.onerror = (e) => {
+        isListening = false;
+        micBtn.classList.remove("listening");
+        console.warn("SpeechRecognition error", e.error);
+        if (e.error === "not-allowed") {
+          addMessage("system", "Microphone permission denied. Allow mic access in Settings → Safari to talk to Bob.", null, true);
+        }
+      };
+      rec.onresult = (event) => {
+        let interim = "";
+        let final = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const t = event.results[i][0].transcript;
+          if (event.results[i].isFinal) final += t;
+          else interim += t;
+        }
+        if (final) {
+          userInput.placeholder = "Describe a problem or ask for a letter…";
+          userInput.value = (userInput.value ? userInput.value.trim() + " " : "") + final.trim();
+          userInput.dispatchEvent(new Event("input"));
+          // Auto-send after a short pause if we got a final result
+          setTimeout(() => {
+            if (!isGenerating && userInput.value.trim()) sendMessage();
+          }, 400);
+        } else if (interim) {
+          userInput.placeholder = interim + "…";
+        }
+      };
+      return rec;
+    }
+
+    function toggleListening() {
+      if (!engine || isGenerating) return;
+      if (!recognition) {
+        recognition = setupRecognition();
+        if (!recognition) {
+          addMessage("system", "Voice input is not supported in this browser. Try Safari or Chrome.", null, true);
+          return;
+        }
+      }
+      if (isListening) {
+        recognition.stop();
+      } else {
+        recognition.lang = recogLang;
+        try {
+          recognition.start();
+        } catch (e) {
+          console.warn(e);
+          // Already started?
+        }
+      }
+    }
+
+    async function loadVoiceSettings() {
+      autoSpeak = await getMeta("autoSpeak", true);
+      selectedVoiceURI = await getMeta("selectedVoiceURI", "");
+      speechRate = parseFloat(await getMeta("speechRate", "1")) || 1;
+      recogLang = await getMeta("recogLang", "en-US");
+      serperKey = await getMeta("serperKey", "") || "";
+      tavilyKey = await getMeta("tavilyKey", "") || "";
+
+      autoSpeakEl.checked = !!autoSpeak;
+      speechRateEl.value = String(speechRate);
+      if ([...recogLangEl.options].some(o => o.value === recogLang)) {
+        recogLangEl.value = recogLang;
+      }
+      if (serperKeyEl) serperKeyEl.value = serperKey;
+      if (tavilyKeyEl) tavilyKeyEl.value = tavilyKey;
+      populateVoices();
+    }
 
     function buildSingleSystem() {
       const nameLine = userName
@@ -686,6 +1024,7 @@ Your job is to improve the result:
         modelSelect.disabled = false;
         userInput.disabled = false;
         sendBtn.disabled = false;
+        micBtn.disabled = false;
         quickActions.classList.add("visible");
         userInput.focus();
 
@@ -759,10 +1098,14 @@ Your job is to improve the result:
       if (!text || !engine || isGenerating) return;
 
       isGenerating = true;
+      stopSpeaking();
+      if (isListening && recognition) recognition.stop();
       userInput.value = "";
       userInput.style.height = "auto";
       userInput.disabled = true;
       sendBtn.disabled = true;
+      micBtn.disabled = true;
+      userInput.placeholder = "Describe a problem or ask for a letter…";
 
       // Learn name if we don't have one yet
       if (!userName) {
@@ -805,6 +1148,7 @@ Your job is to improve the result:
           }
           messages.push({ role: "assistant", content: full });
           await saveMessages(messages);
+          speakText(full);
         } else {
           teamStatus.innerHTML = `Team working: <strong style="color:var(--planner)">Planner</strong> analysing…`;
           await runAgent("planner");
@@ -813,9 +1157,10 @@ Your job is to improve the result:
           await runAgent("writer");
 
           teamStatus.innerHTML = `Team working: <strong style="color:var(--reviewer)">Reviewer</strong> polishing…`;
-          await runAgent("reviewer");
+          const finalReview = await runAgent("reviewer");
 
           teamStatus.innerHTML = `Team finished: <strong>Planner</strong> → <strong>Writer</strong> → <strong>Reviewer</strong>`;
+          speakText(finalReview);
         }
       } catch (err) {
         console.error(err);
@@ -824,16 +1169,17 @@ Your job is to improve the result:
         isGenerating = false;
         userInput.disabled = false;
         sendBtn.disabled = false;
+        micBtn.disabled = false;
         userInput.focus();
       }
     }
 
     // ---------- Online research helpers ----------
-    async function fetchWithTimeout(url, ms = 12000) {
+    async function fetchWithTimeout(url, options = {}, ms = 15000) {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), ms);
       try {
-        const res = await fetch(url, { signal: ctrl.signal });
+        const res = await fetch(url, { ...options, signal: ctrl.signal });
         clearTimeout(t);
         return res;
       } catch (e) {
@@ -856,41 +1202,229 @@ Your job is to improve the result:
       };
     }
 
-    // News via RSS → JSON proxy (BBC World)
-    async function fetchNews() {
-      // Use allorigins to bypass CORS for BBC RSS
-      const rssUrl = encodeURIComponent("https://feeds.bbci.co.uk/news/world/rss.xml");
-      const proxy = `https://api.allorigins.win/get?url=${rssUrl}`;
-      const res = await fetchWithTimeout(proxy, 15000);
-      if (!res.ok) throw new Error("Could not reach news feed");
+    // DuckDuckGo Instant Answer (entity-style summary, free, no key)
+    async function fetchDuckDuckGo(topic) {
+      const q = encodeURIComponent(topic.trim());
+      // JSONP-style endpoint often works; fall back to proxy if CORS blocks
+      const direct = `https://api.duckduckgo.com/?q=${q}&format=json&no_html=1&skip_disambig=1`;
+      try {
+        const res = await fetchWithTimeout(direct, {}, 10000);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.AbstractText || data.Abstract) {
+            return {
+              heading: data.Heading || topic,
+              abstract: data.AbstractText || data.Abstract || "",
+              url: data.AbstractURL || `https://duckduckgo.com/?q=${q}`,
+              source: data.AbstractSource || "DuckDuckGo"
+            };
+          }
+        }
+      } catch (_) { /* try proxy */ }
+      const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(direct)}`;
+      const res = await fetchWithTimeout(proxy, {}, 12000);
+      if (!res.ok) throw new Error("DuckDuckGo unavailable");
       const payload = await res.json();
-      const xml = payload.contents || "";
-      // Simple RSS parse
-      const items = [];
-      const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
-      let match;
-      while ((match = itemRegex.exec(xml)) && items.length < 8) {
-        const block = match[1];
-        const title = (block.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/) || block.match(/<title>(.*?)<\/title>/) || [])[1];
-        const desc = (block.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/) || block.match(/<description>(.*?)<\/description>/) || [])[1];
-        const link = (block.match(/<link>(.*?)<\/link>/) || [])[1];
-        if (title) {
-          items.push({
-            title: title.replace(/<[^>]+>/g, "").trim(),
-            description: (desc || "").replace(/<[^>]+>/g, "").trim().slice(0, 200),
-            link: (link || "").trim()
-          });
+      const data = JSON.parse(payload.contents || "{}");
+      if (!data.AbstractText && !data.Abstract) throw new Error("No instant answer");
+      return {
+        heading: data.Heading || topic,
+        abstract: data.AbstractText || data.Abstract || "",
+        url: data.AbstractURL || `https://duckduckgo.com/?q=${q}`,
+        source: data.AbstractSource || "DuckDuckGo"
+      };
+    }
+
+    // News via multiple RSS feeds through CORS proxy
+    async function fetchNews() {
+      const feeds = [
+        { name: "BBC World", url: "https://feeds.bbci.co.uk/news/world/rss.xml" },
+        { name: "Reuters", url: "https://feeds.reuters.com/reuters/worldNews" },
+        { name: "NPR", url: "https://feeds.npr.org/1001/rss.xml" }
+      ];
+      const allItems = [];
+      for (const feed of feeds) {
+        try {
+          const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(feed.url)}`;
+          const res = await fetchWithTimeout(proxy, {}, 12000);
+          if (!res.ok) continue;
+          const payload = await res.json();
+          const xml = payload.contents || "";
+          const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
+          let match;
+          let count = 0;
+          while ((match = itemRegex.exec(xml)) && count < 4) {
+            const block = match[1];
+            const title = (block.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/) || block.match(/<title>(.*?)<\/title>/) || [])[1];
+            const desc = (block.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/) || block.match(/<description>(.*?)<\/description>/) || [])[1];
+            const link = (block.match(/<link>(.*?)<\/link>/) || [])[1];
+            if (title) {
+              allItems.push({
+                source: feed.name,
+                title: title.replace(/<[^>]+>/g, "").trim(),
+                description: (desc || "").replace(/<[^>]+>/g, "").trim().slice(0, 180),
+                link: (link || "").trim()
+              });
+              count++;
+            }
+          }
+        } catch (_) { /* skip this feed */ }
+      }
+      if (allItems.length === 0) throw new Error("No headlines from any feed");
+      return allItems.slice(0, 12);
+    }
+
+    // Serper.dev Google search (optional key)
+    async function fetchSerper(query) {
+      if (!serperKey) throw new Error("No Serper key");
+      const res = await fetchWithTimeout("https://google.serper.dev/search", {
+        method: "POST",
+        headers: {
+          "X-API-KEY": serperKey,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ q: query, num: 8 })
+      }, 15000);
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        throw new Error("Serper error " + res.status + (errText ? ": " + errText.slice(0, 120) : ""));
+      }
+      const data = await res.json();
+      const organic = (data.organic || []).map(r => ({
+        title: r.title,
+        snippet: r.snippet || "",
+        link: r.link
+      }));
+      const answerBox = data.answerBox ? `Answer box: ${data.answerBox.answer || data.answerBox.snippet || JSON.stringify(data.answerBox)}\n` : "";
+      const kg = data.knowledgeGraph ? `Knowledge: ${data.knowledgeGraph.title || ""} — ${data.knowledgeGraph.description || ""}\n` : "";
+      return {
+        provider: "Serper (Google)",
+        text: answerBox + kg + organic.map((r, i) =>
+          `${i + 1}. ${r.title}\n   ${r.snippet}\n   ${r.link}`
+        ).join("\n\n")
+      };
+    }
+
+    // Tavily search (optional key — excellent for AI)
+    async function fetchTavily(query) {
+      if (!tavilyKey) throw new Error("No Tavily key");
+      const res = await fetchWithTimeout("https://api.tavily.com/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          api_key: tavilyKey,
+          query,
+          search_depth: "basic",
+          include_answer: true,
+          max_results: 6
+        })
+      }, 18000);
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        throw new Error("Tavily error " + res.status + (errText ? ": " + errText.slice(0, 120) : ""));
+      }
+      const data = await res.json();
+      const answer = data.answer ? `Tavily answer: ${data.answer}\n\n` : "";
+      const results = (data.results || []).map((r, i) =>
+        `${i + 1}. ${r.title}\n   ${r.content || r.snippet || ""}\n   ${r.url}`
+      ).join("\n\n");
+      return {
+        provider: "Tavily",
+        text: answer + results
+      };
+    }
+
+    // Open-Meteo weather (free, no key, CORS ok)
+    async function fetchWeather(place) {
+      // Geocode first (Open-Meteo geocoding)
+      const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(place)}&count=1&language=en&format=json`;
+      const geoRes = await fetchWithTimeout(geoUrl);
+      if (!geoRes.ok) throw new Error("Geocoding failed");
+      const geo = await geoRes.json();
+      if (!geo.results || !geo.results.length) throw new Error("Place not found: " + place);
+      const { latitude, longitude, name, country, admin1 } = geo.results[0];
+      const label = [name, admin1, country].filter(Boolean).join(", ");
+
+      const wxUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto&forecast_days=5`;
+      const wxRes = await fetchWithTimeout(wxUrl);
+      if (!wxRes.ok) throw new Error("Weather fetch failed");
+      const wx = await wxRes.json();
+      const cur = wx.current || {};
+      const daily = wx.daily || {};
+      const codeMap = {
+        0: "Clear", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+        45: "Fog", 48: "Depositing rime fog",
+        51: "Light drizzle", 53: "Drizzle", 55: "Dense drizzle",
+        61: "Slight rain", 63: "Rain", 65: "Heavy rain",
+        71: "Slight snow", 73: "Snow", 75: "Heavy snow",
+        80: "Rain showers", 81: "Rain showers", 82: "Violent rain showers",
+        95: "Thunderstorm", 96: "Thunderstorm with hail", 99: "Thunderstorm with heavy hail"
+      };
+      let text = `Location: ${label}\n`;
+      text += `Current: ${cur.temperature_2m}°C (feels ${cur.apparent_temperature}°C), humidity ${cur.relative_humidity_2m}%, wind ${cur.wind_speed_10m} km/h, ${codeMap[cur.weather_code] || "code " + cur.weather_code}\n\n`;
+      text += "Next days:\n";
+      if (daily.time) {
+        for (let i = 0; i < daily.time.length; i++) {
+          text += `${daily.time[i]}: ${daily.temperature_2m_min[i]}–${daily.temperature_2m_max[i]}°C, precip ${daily.precipitation_sum[i]} mm, ${codeMap[daily.weather_code[i]] || ""}\n`;
         }
       }
-      if (items.length === 0) throw new Error("No headlines parsed");
-      return items;
+      return { label, text };
+    }
+
+    // Unified research: try best available sources
+    async function gatherResearchContext(topic) {
+      const parts = [];
+      const errors = [];
+
+      // Prefer paid/free-tier search APIs when available
+      if (tavilyKey) {
+        try {
+          const t = await fetchTavily(topic);
+          parts.push(`=== ${t.provider} ===\n${t.text}`);
+        } catch (e) { errors.push("Tavily: " + e.message); }
+      }
+      if (serperKey && parts.length === 0) {
+        try {
+          const s = await fetchSerper(topic);
+          parts.push(`=== ${s.provider} ===\n${s.text}`);
+        } catch (e) { errors.push("Serper: " + e.message); }
+      }
+
+      // Always try Wikipedia
+      try {
+        const wiki = await fetchWikipedia(topic);
+        if (wiki.extract) {
+          parts.push(`=== Wikipedia ===\nTitle: ${wiki.title}\n${wiki.extract}\nSource: ${wiki.url}`);
+        }
+      } catch (e) { errors.push("Wikipedia: " + e.message); }
+
+      // DuckDuckGo instant answer as extra free signal
+      if (parts.length < 2) {
+        try {
+          const ddg = await fetchDuckDuckGo(topic);
+          if (ddg.abstract) {
+            parts.push(`=== DuckDuckGo (${ddg.source}) ===\n${ddg.heading}\n${ddg.abstract}\n${ddg.url}`);
+          }
+        } catch (e) { errors.push("DuckDuckGo: " + e.message); }
+      }
+
+      if (parts.length === 0) {
+        throw new Error("All sources failed. " + (errors.join("; ") || "Check internet connection."));
+      }
+      return {
+        context: parts.join("\n\n"),
+        sourcesNote: parts.map(p => p.split("\n")[0].replace(/===|===/g, "").trim()).join(", "),
+        errors
+      };
     }
 
     async function askBobWithContext(userVisibleText, contextBlock, instruction) {
       if (!engine || isGenerating) return;
       isGenerating = true;
+      stopSpeaking();
       userInput.disabled = true;
       sendBtn.disabled = true;
+      micBtn.disabled = true;
 
       addMessage("user", userVisibleText);
 
@@ -925,12 +1459,14 @@ Your job is to improve the result:
         }
         messages.push({ role: "assistant", content: full });
         await saveMessages(messages);
+        speakText(full);
       } catch (err) {
         updateStreaming(div, "Sorry — online lookup or reply failed: " + (err.message || err));
       } finally {
         isGenerating = false;
         userInput.disabled = false;
         sendBtn.disabled = false;
+        micBtn.disabled = false;
         userInput.focus();
       }
     }
@@ -940,17 +1476,17 @@ Your job is to improve the result:
         addMessage("system", "Load a model first, then try Today's news.", null, true);
         return;
       }
-      addMessage("system", "Fetching today's world headlines…", null, true);
+      addMessage("system", "Fetching headlines from BBC, Reuters & NPR…", null, true);
       try {
         const items = await fetchNews();
         const context = items.map((it, i) =>
-          `${i + 1}. ${it.title}\n   ${it.description}${it.link ? "\n   Link: " + it.link : ""}`
+          `${i + 1}. [${it.source}] ${it.title}\n   ${it.description}${it.link ? "\n   Link: " + it.link : ""}`
         ).join("\n\n");
         const nameBit = userName ? ` for ${userName}` : "";
         await askBobWithContext(
           "📰 What's the news of the day?",
           context,
-          `Here are today's top world headlines from BBC. Summarise the main stories clearly${nameBit}. Group related topics if useful, keep it readable, and offer to go deeper on any story.`
+          `Here are recent headlines from multiple sources. Summarise the main stories clearly${nameBit}. Group related topics if useful, keep it readable, and offer to go deeper on any story.`
         );
       } catch (err) {
         addMessage("system", "Could not fetch news (need internet). " + (err.message || err), null, true);
@@ -965,28 +1501,90 @@ Your job is to improve the result:
       const topic = prompt("What topic should Bob research?");
       if (!topic || !topic.trim()) return;
 
-      addMessage("system", `Looking up “${topic.trim()}”…`, null, true);
+      const hasKey = !!(tavilyKey || serperKey);
+      addMessage("system", hasKey
+        ? `Researching “${topic.trim()}” with web search + Wikipedia…`
+        : `Looking up “${topic.trim()}” (Wikipedia + free sources). Add a Serper or Tavily key in ⚙️ for richer results.`, null, true);
       try {
-        const wiki = await fetchWikipedia(topic.trim());
-        const context = `Title: ${wiki.title}\nSummary: ${wiki.extract}\nSource: ${wiki.url}`;
+        const { context, sourcesNote } = await gatherResearchContext(topic.trim());
         const nameBit = userName ? userName + ", " : "";
         await askBobWithContext(
           `🔍 Research: ${topic.trim()}`,
           context,
-          `${nameBit}using the Wikipedia summary above, explain this topic clearly in plain language. Highlight key points, and mention the source. If the summary is thin, say so and suggest what else to look up.`
+          `${nameBit}using the online information above (sources: ${sourcesNote}), explain this topic clearly in plain language. Highlight key points, note any conflicting info, and cite the sources. If the data is thin, say so and suggest what else to look up.`
         );
       } catch (err) {
-        // Fallback: still let Bob answer from model knowledge with a note
-        addMessage("system", "Wikipedia lookup failed (" + (err.message || err) + "). Answering from model knowledge only…", null, true);
+        addMessage("system", "Lookup failed (" + (err.message || err) + "). Answering from model knowledge only…", null, true);
         userInput.value = `Please research and explain: ${topic.trim()}`;
         userInput.dispatchEvent(new Event("input"));
         await sendMessage();
       }
     }
 
+    async function handleWebSearch() {
+      if (!engine || isGenerating) {
+        addMessage("system", "Load a model first, then try web search.", null, true);
+        return;
+      }
+      if (!tavilyKey && !serperKey) {
+        addMessage("system", "Web search needs a free API key. Open ⚙️ Settings and paste a Serper.dev or Tavily key (both have free tiers, no card required).", null, true);
+        settingsModal.classList.add("visible");
+        return;
+      }
+      const q = prompt("What should Bob search the web for?");
+      if (!q || !q.trim()) return;
+
+      addMessage("system", `Searching the web for “${q.trim()}”…`, null, true);
+      try {
+        let result;
+        if (tavilyKey) {
+          try { result = await fetchTavily(q.trim()); }
+          catch (e) {
+            if (serperKey) result = await fetchSerper(q.trim());
+            else throw e;
+          }
+        } else {
+          result = await fetchSerper(q.trim());
+        }
+        const nameBit = userName ? userName + ", " : "";
+        await askBobWithContext(
+          `🌐 Web search: ${q.trim()}`,
+          result.text,
+          `${nameBit}using these live search results from ${result.provider}, answer the query clearly. Summarise the most relevant findings, mention sources/links when useful, and note if results seem outdated or conflicting.`
+        );
+      } catch (err) {
+        addMessage("system", "Web search failed: " + (err.message || err), null, true);
+      }
+    }
+
+    async function handleWeather() {
+      if (!engine || isGenerating) {
+        addMessage("system", "Load a model first, then try Weather.", null, true);
+        return;
+      }
+      const place = prompt("Weather for which city or place?", "Lampang");
+      if (!place || !place.trim()) return;
+
+      addMessage("system", `Checking weather for “${place.trim()}”…`, null, true);
+      try {
+        const wx = await fetchWeather(place.trim());
+        const nameBit = userName ? userName + ", " : "";
+        await askBobWithContext(
+          `🌤️ Weather: ${wx.label}`,
+          wx.text,
+          `${nameBit}summarise the current weather and the next few days for this place in a friendly, practical way. Mention temperature, conditions, and anything useful (rain, wind). Units are Celsius.`
+        );
+      } catch (err) {
+        addMessage("system", "Weather lookup failed: " + (err.message || err), null, true);
+      }
+    }
+
     document.getElementById("newsChip")?.addEventListener("click", handleNews);
     document.getElementById("researchChip")?.addEventListener("click", handleResearch);
+    document.getElementById("webSearchChip")?.addEventListener("click", handleWebSearch);
+    document.getElementById("weatherChip")?.addEventListener("click", handleWeather);
 
+    // Clear history
     // Clear history
     clearBtn.addEventListener("click", () => clearModal.classList.add("visible"));
     cancelClear.addEventListener("click", () => clearModal.classList.remove("visible"));
@@ -1016,17 +1614,74 @@ Your job is to improve the result:
       }
     });
 
+    // Mic + settings
+    micBtn.addEventListener("click", toggleListening);
+
+    settingsBtn.addEventListener("click", () => {
+      populateVoices();
+      settingsModal.classList.add("visible");
+    });
+    closeSettings.addEventListener("click", () => settingsModal.classList.remove("visible"));
+    settingsModal.addEventListener("click", (e) => {
+      if (e.target === settingsModal) settingsModal.classList.remove("visible");
+    });
+
+    autoSpeakEl.addEventListener("change", async () => {
+      autoSpeak = autoSpeakEl.checked;
+      await setMeta("autoSpeak", autoSpeak);
+      if (!autoSpeak) stopSpeaking();
+    });
+    voiceSelect.addEventListener("change", async () => {
+      selectedVoiceURI = voiceSelect.value;
+      await setMeta("selectedVoiceURI", selectedVoiceURI);
+    });
+    speechRateEl.addEventListener("change", async () => {
+      speechRate = parseFloat(speechRateEl.value) || 1;
+      await setMeta("speechRate", String(speechRate));
+    });
+    recogLangEl.addEventListener("change", async () => {
+      recogLang = recogLangEl.value;
+      await setMeta("recogLang", recogLang);
+      if (recognition) recognition.lang = recogLang;
+    });
+    serperKeyEl?.addEventListener("change", async () => {
+      serperKey = (serperKeyEl.value || "").trim();
+      await setMeta("serperKey", serperKey);
+    });
+    tavilyKeyEl?.addEventListener("change", async () => {
+      tavilyKey = (tavilyKeyEl.value || "").trim();
+      await setMeta("tavilyKey", tavilyKey);
+    });
+    // Also save on blur so partial pastes stick
+    serperKeyEl?.addEventListener("blur", async () => {
+      serperKey = (serperKeyEl.value || "").trim();
+      await setMeta("serperKey", serperKey);
+    });
+    tavilyKeyEl?.addEventListener("blur", async () => {
+      tavilyKey = (tavilyKeyEl.value || "").trim();
+      await setMeta("tavilyKey", tavilyKey);
+    });
+
+    // Voices often load asynchronously
+    if (window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = populateVoices;
+      populateVoices();
+    }
+
     setStatus("", "Model not loaded");
 
-    // Auto-restore last model so you don't have to press Load every time
+    // Load saved voice preferences + auto-restore last model
     (async () => {
+      try {
+        await loadVoiceSettings();
+      } catch (e) {
+        console.warn("Voice settings load failed", e);
+      }
       try {
         const last = await getLastModel();
         if (last) {
-          // Select it in the dropdown if present
           const opt = [...modelSelect.options].find(o => o.value === last);
           if (opt) modelSelect.value = last;
-          // Small delay so UI is painted
           setTimeout(() => loadModel(true), 400);
         }
       } catch (e) {
