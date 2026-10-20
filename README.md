@@ -5,46 +5,49 @@ No cloud required for chat. Optional free API keys unlock richer web search. Wor
 
 ## Features
 
+### Core
 - **Single mode** – normal chat
 - **Team mode** – three agents collaborate:
   - **Planner** – analyses & plans
   - **Writer** – drafts letters / advice
   - **Reviewer** – polishes the final result
-- **Voice conversation** – tap the mic 🎤 to talk; Crazy Bob can speak replies out loud
-- **Voice settings** – choose system voice, speaking speed, and listening language (⚙️ button)
-- **Online tools** (need internet):
-  - 📰 Multi-source news (BBC, Reuters, NPR)
-  - 🔍 Research a topic (Wikipedia + DuckDuckGo Instant Answer)
-  - 🌐 Web search (optional free API keys: Serper or Tavily)
-  - 🌤️ Weather (Open-Meteo, any city)
-- **Optional API keys** in Settings for richer web search (keys stored only on this device)
-- **Persistent chat history** – conversations are saved on the phone (IndexedDB) so Bob remembers past chats
-- Fully offline after the first model download (voice uses the device’s built-in speech engines)
+- **Persistent chat history** – saved on device (IndexedDB); last ~80 messages kept
+- Fully offline after the first model download (except optional online tools)
 - Installable as a Home Screen app on iPhone
-- Clear history button (trash icon) if you want to wipe saved chats
+- Clear history (trash icon)
 
-## Live demo (after you enable GitHub Pages)
+### Voice
+- **🎤 Talk** – speech-to-text input (tap mic)
+- **Bob talks back** – text-to-speech with voice picker, speed control
+- **Continuous conversation** – after Bob speaks, auto-listen again (Settings)
+- Listening language selectable (English, Thai, Spanish, French, German, Japanese, Chinese…)
 
-Once you push this repo and turn on Pages, open:
+### Online tools (need internet)
+| Chip | What it does | Needs key? |
+|------|----------------|------------|
+| 📰 Today's news | BBC + Reuters + NPR headlines | No |
+| 🔍 Research a topic | Wikipedia + DuckDuckGo Instant Answer (+ web search if key) | Optional |
+| 🌐 Search the web | Live web results via Tavily or Serper | Yes (free tiers) |
+| 🌤️ Weather | Any city via Open-Meteo | No |
+| 💱 Currency | Live FX rates (frankfurter.app / ECB) | No |
+| 📈 Crypto | Price + 24h change (CoinGecko) | No |
+| 📖 Define | Dictionary definitions | No |
+| 🌍 Translate | Free translation (MyMemory) | No |
+| 🔗 Summarize URL | Fetch page text & summarise | No |
 
-```
-https://YOUR-USERNAME.github.io/crazy-bob/
-```
+**Optional API keys** (Settings → Online search):
+- [Serper.dev](https://serper.dev) — 2,500 free Google searches
+- [Tavily](https://tavily.com) — 1,000 free searches/month, great for AI
 
-## How to put it on GitHub
+Keys are stored **only on this device**.
 
-1. Create a new repository named `crazy-bob` (public is easiest for Pages).
-2. Upload these files to the root of the repo:
-   - `index.html`
-   - `apple-touch-icon.png`
-   - `crazy-bob-icon.png`
-   - `manifest.json`
-   - `README.md`
-3. Go to **Settings → Pages**.
-4. Under **Source**, choose **Deploy from a branch**.
-5. Select branch `main` and folder `/ (root)`.
-6. Save. After 1–2 minutes your site will be live at:
-   `https://YOUR-USERNAME.github.io/crazy-bob/`
+### Quality-of-life
+- Markdown rendering in replies (lists, bold, code)
+- Copy / Speak buttons on every assistant message
+- **Stop** button while generating
+- Personality presets (Classic, Calm, Coach, Formal, Witty)
+- Export chat as text file
+- Auto-restore last model on open
 
 ## Use on iPhone
 
@@ -53,17 +56,9 @@ https://YOUR-USERNAME.github.io/crazy-bob/
 3. It appears as **Crazy Bob** with the crazy face icon.
 4. Choose a model (Llama 3.2 1B recommended) → **Load**.
 5. Switch to **Team** mode if you want the three agents.
-6. Tap **⚙️** to pick a voice, turn “Crazy Bob talks back” on/off, and optionally paste free Serper or Tavily API keys for web search.
-7. Tap the **🎤** mic button, speak, then Bob will reply (and speak if enabled). Allow microphone access when Safari asks.
-8. Use the chips for news, research, web search, or weather.
-
-## Memory notes
-
-- Chat history is stored locally in the browser (IndexedDB) on your phone.
-- Last ~80 messages are kept so storage stays reasonable.
-- The model itself is also cached after the first download.
-- Use the trash icon to clear all saved chats if needed.
-- History is tied to the site origin (your GitHub Pages URL).
+6. Tap **⚙️** for voice, personality, continuous chat, and optional API keys.
+7. Tap **🎤** to talk; allow microphone when asked.
+8. Use the chips for news, research, web search, weather, currency, crypto, define, translate, or URL summarise.
 
 ## Models
 
@@ -78,7 +73,7 @@ First load downloads the model (cached afterwards). Needs WebGPU (Safari 26+ or 
 
 ## Privacy
 
-Everything runs on your device. Conversations never leave your phone.
+Chat runs on your device. Conversations never leave your phone unless you use an online tool (news, search, weather, etc.), in which case only that query/URL is sent to the respective free public API. Optional API keys stay in local storage.
 
 ---
 

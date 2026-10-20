@@ -123,8 +123,33 @@
 
     .msg {
       max-width: 92%; padding: 12px 14px; border-radius: 16px;
-      font-size: 15px; line-height: 1.45; word-wrap: break-word; white-space: pre-wrap;
+      font-size: 15px; line-height: 1.45; word-wrap: break-word; position: relative;
     }
+    .msg .content { white-space: pre-wrap; }
+    .msg .content.md { white-space: normal; }
+    .msg .content.md p { margin: 0 0 0.55em; }
+    .msg .content.md p:last-child { margin-bottom: 0; }
+    .msg .content.md ul, .msg .content.md ol { margin: 0.35em 0 0.55em 1.2em; padding: 0; }
+    .msg .content.md li { margin-bottom: 0.2em; }
+    .msg .content.md code {
+      background: rgba(0,0,0,0.25); padding: 1px 5px; border-radius: 4px; font-size: 0.9em;
+    }
+    .msg .content.md pre {
+      background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; overflow-x: auto;
+      margin: 0.45em 0; font-size: 0.85em;
+    }
+    .msg .content.md pre code { background: none; padding: 0; }
+    .msg .content.md strong { font-weight: 700; }
+    .msg .content.md a { color: var(--accent); }
+
+    .msg-actions {
+      display: flex; gap: 4px; margin-top: 8px; flex-wrap: wrap;
+    }
+    .msg-actions button {
+      background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+      font-size: 12px; padding: 4px 8px; border-radius: 8px; cursor: pointer;
+    }
+    .msg-actions button:active { opacity: 0.6; }
 
     .msg.user {
       align-self: flex-end; background: var(--user-bubble); color: #0f172a;
@@ -210,6 +235,13 @@
     #micBtn.speaking {
       background: var(--success); color: white; border-color: var(--success);
     }
+
+    #stopBtn {
+      display: none; width: 44px; height: 44px; border-radius: 50%;
+      background: var(--danger); color: white; border: none;
+      align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px;
+    }
+    #stopBtn.visible { display: flex; }
 
     /* Settings form */
     .settings-row {
@@ -345,7 +377,7 @@
     <div class="welcome" id="welcome">
       <img src="apple-touch-icon.png" alt="Crazy Bob" width="72" height="72" style="border-radius:16px;margin-bottom:12px;" />
       <h2>Crazy Bob</h2>
-      <p>Your slightly unhinged local AI. Chats are saved on your phone. He can pull <strong>news</strong>, <strong>research</strong>, <strong>web search</strong> and <strong>weather</strong> online. Add free API keys in ⚙️ for better web results.</p>
+      <p>Your local AI on this phone. Voice in/out, persistent memory, news, research, web search, weather, currency, crypto, define, translate &amp; URL summarise. Add free API keys in ⚙️ for richer web results.</p>
       <div class="agents-row">
         <div class="agent-card planner">
           <div class="name">Planner</div>
@@ -373,11 +405,17 @@
     <div class="chip chip-online" id="researchChip">🔍 Research a topic</div>
     <div class="chip chip-online" id="webSearchChip">🌐 Search the web</div>
     <div class="chip chip-online" id="weatherChip">🌤️ Weather</div>
+    <div class="chip chip-online" id="currencyChip">💱 Currency</div>
+    <div class="chip chip-online" id="cryptoChip">📈 Crypto</div>
+    <div class="chip chip-online" id="defineChip">📖 Define</div>
+    <div class="chip chip-online" id="translateChip">🌍 Translate</div>
+    <div class="chip chip-online" id="summarizeChip">🔗 Summarize URL</div>
   </div>
 
   <div class="input-area">
     <textarea id="userInput" placeholder="Describe a problem or ask for a letter…" rows="1" disabled></textarea>
     <button id="micBtn" disabled title="Talk to Crazy Bob" aria-label="Voice input">🎤</button>
+    <button id="stopBtn" title="Stop generating" aria-label="Stop">■</button>
     <button id="sendBtn" disabled>↑</button>
   </div>
 
@@ -439,6 +477,31 @@
         </select>
       </div>
       <p class="settings-hint">Language used when you speak into the mic. Requires mic permission.</p>
+
+      <div class="settings-row">
+        <label for="continuousVoice">Continuous conversation</label>
+        <label class="toggle">
+          <input type="checkbox" id="continuousVoice">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <p class="settings-hint">After Bob finishes speaking, automatically start listening again for a back-and-forth chat.</p>
+
+      <div class="settings-row">
+        <label for="personalitySelect">Personality</label>
+        <select id="personalitySelect">
+          <option value="classic" selected>Classic Crazy Bob</option>
+          <option value="calm">Calm & thoughtful</option>
+          <option value="coach">Motivational coach</option>
+          <option value="formal">Professional / formal</option>
+          <option value="witty">Extra witty & sarcastic</option>
+        </select>
+      </div>
+      <p class="settings-hint">Changes how Bob styles his replies. Takes effect on the next message.</p>
+
+      <div class="settings-row" style="margin-top:8px;">
+        <button type="button" id="exportChatBtn" class="btn-secondary" style="width:100%;padding:10px;">Export chat as text</button>
+      </div>
 
       <hr style="border:none;border-top:1px solid var(--border);margin:16px 0;">
 
@@ -801,6 +864,8 @@
       recogLang = await getMeta("recogLang", "en-US");
       serperKey = await getMeta("serperKey", "") || "";
       tavilyKey = await getMeta("tavilyKey", "") || "";
+      continuousVoice = !!(await getMeta("continuousVoice", false));
+      personality = (await getMeta("personality", "classic")) || "classic";
 
       autoSpeakEl.checked = !!autoSpeak;
       speechRateEl.value = String(speechRate);
@@ -809,21 +874,46 @@
       }
       if (serperKeyEl) serperKeyEl.value = serperKey;
       if (tavilyKeyEl) tavilyKeyEl.value = tavilyKey;
+      const contEl = document.getElementById("continuousVoice");
+      if (contEl) contEl.checked = continuousVoice;
+      const persEl = document.getElementById("personalitySelect");
+      if (persEl && [...persEl.options].some(o => o.value === personality)) {
+        persEl.value = personality;
+      }
       populateVoices();
     }
+
+    let personality = "classic";
+    let continuousVoice = false;
+    let abortController = null; // for stopping generation
+
+    const personalityStyles = {
+      classic: "Keep a lively, slightly unhinged, energetic and friendly personality with humour.",
+      calm: "Be calm, thoughtful, measured and warm. Avoid hype; prefer clarity and gentle humour.",
+      coach: "Be a motivational coach: encouraging, action-oriented, positive, and practical. Push for next steps.",
+      formal: "Be professional, formal and polished. Minimal slang or jokes. Suitable for serious correspondence.",
+      witty: "Be extra witty, playfully sarcastic and sharp, while still remaining helpful and kind."
+    };
 
     function buildSingleSystem() {
       const nameLine = userName
         ? `The user's name is ${userName}. Always address them as ${userName} in a natural, friendly way.`
         : `You do not know the user's name yet. In your first reply, warmly ask what their name is. Once they tell you, use it from then on.`;
-      return `You are Crazy Bob – a helpful but slightly unhinged, energetic AI assistant running privately on the user's iPhone.
+      const style = personalityStyles[personality] || personalityStyles.classic;
+      return `You are Crazy Bob – a helpful AI assistant running privately on the user's device (no cloud for chat).
 ${nameLine}
+${style}
+
 You excel at:
-- Discussing personal and practical problems with empathy, humour and good judgment.
-- Writing high-quality letters, emails and formal messages (you can be serious when needed).
+- Discussing personal and practical problems with empathy and good judgment.
+- Writing high-quality letters, emails and formal messages.
 - Giving clear step-by-step advice.
+- Summarising research, news, weather, currency, crypto and web results when the user triggers those tools.
+
+Formatting: Use markdown when it helps (short lists, **bold** for emphasis, code blocks for code or addresses). Keep replies readable on a phone screen — not walls of text.
+
 You can see the conversation history, so use past context when relevant.
-Be concise when appropriate, thorough when needed. Ask clarifying questions if important details are missing. Keep a lively, friendly personality.`;
+Be concise when appropriate, thorough when needed. Ask clarifying questions if important details are missing.`;
     }
 
     function buildAgentPrompt(agentKey) {
@@ -926,6 +1016,65 @@ Your job is to improve the result:
       return d.innerHTML;
     }
 
+    // Lightweight markdown → HTML (safe subset)
+    function renderMarkdown(text) {
+      if (!text) return "";
+      let html = escapeHtml(text);
+      // code blocks
+      html = html.replace(/```([\s\S]*?)```/g, (_, code) => `<pre><code>${code.trim()}</code></pre>`);
+      // inline code
+      html = html.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+      // bold
+      html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+      html = html.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+      // italic
+      html = html.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "<em>$1</em>");
+      // simple links
+      html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+      // unordered lists (lines starting with - or *)
+      html = html.replace(/(^|\n)(?:[-*] .+(?:\n[-*] .+)*)/g, (block) => {
+        const items = block.trim().split(/\n/).map(l => l.replace(/^[-*]\s+/, "").trim());
+        return "\n<ul>" + items.map(i => `<li>${i}</li>`).join("") + "</ul>";
+      });
+      // numbered lists
+      html = html.replace(/(^|\n)(?:\d+\. .+(?:\n\d+\. .+)*)/g, (block) => {
+        const items = block.trim().split(/\n/).map(l => l.replace(/^\d+\.\s+/, "").trim());
+        return "\n<ol>" + items.map(i => `<li>${i}</li>`).join("") + "</ol>";
+      });
+      // paragraphs
+      html = html.split(/\n{2,}/).map(p => {
+        p = p.trim();
+        if (!p) return "";
+        if (p.startsWith("<ul") || p.startsWith("<ol") || p.startsWith("<pre")) return p;
+        return "<p>" + p.replace(/\n/g, "<br>") + "</p>";
+      }).join("");
+      return html;
+    }
+
+    function attachMessageActions(div, content, isAssistant) {
+      if (!isAssistant || !content) return;
+      const actions = document.createElement("div");
+      actions.className = "msg-actions";
+      actions.innerHTML = `
+        <button type="button" data-act="copy" title="Copy">Copy</button>
+        <button type="button" data-act="speak" title="Speak">Speak</button>
+      `;
+      actions.addEventListener("click", (e) => {
+        const btn = e.target.closest("button");
+        if (!btn) return;
+        const act = btn.dataset.act;
+        if (act === "copy") {
+          navigator.clipboard?.writeText(content).then(() => {
+            btn.textContent = "Copied";
+            setTimeout(() => btn.textContent = "Copy", 1200);
+          }).catch(() => {});
+        } else if (act === "speak") {
+          speakText(content);
+        }
+      });
+      div.appendChild(actions);
+    }
+
     function addMessage(role, content, agent = null, skipSave = false) {
       if (welcomeEl && welcomeEl.parentNode) welcomeEl.remove();
 
@@ -942,7 +1091,11 @@ Your job is to improve the result:
         const label = agent
           ? `<div class="label"><span class="agent-badge" style="background:var(--${agent})"></span>${agent.charAt(0).toUpperCase() + agent.slice(1)}</div>`
           : `<div class="label">Assistant</div>`;
-        div.innerHTML = `${label}<div class="content">${escapeHtml(content)}</div>`;
+        const body = content
+          ? `<div class="content md">${renderMarkdown(content)}</div>`
+          : `<div class="content"></div>`;
+        div.innerHTML = `${label}${body}`;
+        if (content) attachMessageActions(div, content, true);
       }
       chatEl.appendChild(div);
       chatEl.scrollTop = chatEl.scrollHeight;
@@ -956,8 +1109,18 @@ Your job is to improve the result:
 
     function updateStreaming(div, text) {
       const content = div.querySelector(".content");
-      if (content) content.textContent = text;
+      if (content) {
+        content.classList.add("md");
+        content.innerHTML = renderMarkdown(text);
+      }
       chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    function finalizeAssistantMessage(div, fullText) {
+      // Ensure actions exist after streaming finishes
+      if (div && fullText && !div.querySelector(".msg-actions")) {
+        attachMessageActions(div, fullText, true);
+      }
     }
 
     function renderHistory(saved) {
@@ -978,7 +1141,8 @@ Your job is to improve the result:
           const label = agent
             ? `<div class="label"><span class="agent-badge" style="background:var(--${agent})"></span>${agent.charAt(0).toUpperCase() + agent.slice(1)}</div>`
             : `<div class="label">Assistant</div>`;
-          div.innerHTML = `${label}<div class="content">${escapeHtml(m.content)}</div>`;
+          div.innerHTML = `${label}<div class="content md">${renderMarkdown(m.content)}</div>`;
+          attachMessageActions(div, m.content, true);
           chatEl.appendChild(div);
         }
       }
@@ -1057,9 +1221,20 @@ Your job is to improve the result:
       }
     }
 
+    function setGeneratingUI(on) {
+      isGenerating = on;
+      userInput.disabled = on;
+      sendBtn.disabled = on;
+      micBtn.disabled = on;
+      const stopBtn = document.getElementById("stopBtn");
+      if (stopBtn) {
+        if (on) stopBtn.classList.add("visible");
+        else stopBtn.classList.remove("visible");
+      }
+    }
+
     async function runAgent(agentName) {
       const systemPrompt = buildAgentPrompt(agentName);
-      // Build context from recent messages (skip pure system)
       const historyForModel = messages
         .filter(m => m.role === "user" || m.role === "assistant")
         .map(m => ({ role: m.role, content: m.agent ? `[${m.agent.toUpperCase()}]\n${m.content}` : m.content }));
@@ -1069,7 +1244,7 @@ Your job is to improve the result:
         ...historyForModel
       ];
 
-      const div = addMessage("assistant", "", agentName, true); // skipSave until complete
+      const div = addMessage("assistant", "", agentName, true);
       const contentEl = div.querySelector(".content");
       contentEl.innerHTML = `<div class="typing"><span></span><span></span><span></span></div>`;
 
@@ -1082,14 +1257,15 @@ Your job is to improve the result:
 
       let full = "";
       for await (const chunk of chunks) {
+        if (!isGenerating) break; // stopped by user
         const delta = chunk.choices[0]?.delta?.content || "";
         full += delta;
         updateStreaming(div, full);
       }
 
-      // Now persist
       messages.push({ role: "assistant", content: full, agent: agentName });
       await saveMessages(messages);
+      finalizeAssistantMessage(div, full);
       return full;
     }
 
@@ -1097,17 +1273,13 @@ Your job is to improve the result:
       const text = userInput.value.trim();
       if (!text || !engine || isGenerating) return;
 
-      isGenerating = true;
+      setGeneratingUI(true);
       stopSpeaking();
       if (isListening && recognition) recognition.stop();
       userInput.value = "";
       userInput.style.height = "auto";
-      userInput.disabled = true;
-      sendBtn.disabled = true;
-      micBtn.disabled = true;
       userInput.placeholder = "Describe a problem or ask for a letter…";
 
-      // Learn name if we don't have one yet
       if (!userName) {
         const maybe = tryExtractName(text);
         if (maybe) {
@@ -1116,7 +1288,7 @@ Your job is to improve the result:
         }
       }
 
-      addMessage("user", text); // this also saves
+      addMessage("user", text);
 
       try {
         if (mode === "single") {
@@ -1142,36 +1314,61 @@ Your job is to improve the result:
 
           let full = "";
           for await (const chunk of chunks) {
+            if (!isGenerating) break;
             const delta = chunk.choices[0]?.delta?.content || "";
             full += delta;
             updateStreaming(div, full);
           }
           messages.push({ role: "assistant", content: full });
           await saveMessages(messages);
-          speakText(full);
+          finalizeAssistantMessage(div, full);
+          if (full) {
+            speakText(full);
+            maybeContinueListening();
+          }
         } else {
           teamStatus.innerHTML = `Team working: <strong style="color:var(--planner)">Planner</strong> analysing…`;
-          await runAgent("planner");
+          if (isGenerating) await runAgent("planner");
 
-          teamStatus.innerHTML = `Team working: <strong style="color:var(--writer)">Writer</strong> drafting…`;
-          await runAgent("writer");
+          if (isGenerating) {
+            teamStatus.innerHTML = `Team working: <strong style="color:var(--writer)">Writer</strong> drafting…`;
+            await runAgent("writer");
+          }
 
-          teamStatus.innerHTML = `Team working: <strong style="color:var(--reviewer)">Reviewer</strong> polishing…`;
-          const finalReview = await runAgent("reviewer");
+          let finalReview = "";
+          if (isGenerating) {
+            teamStatus.innerHTML = `Team working: <strong style="color:var(--reviewer)">Reviewer</strong> polishing…`;
+            finalReview = await runAgent("reviewer");
+          }
 
           teamStatus.innerHTML = `Team finished: <strong>Planner</strong> → <strong>Writer</strong> → <strong>Reviewer</strong>`;
-          speakText(finalReview);
+          if (finalReview) {
+            speakText(finalReview);
+            maybeContinueListening();
+          }
         }
       } catch (err) {
-        console.error(err);
-        addMessage("system", "Error: " + (err.message || err), null, true);
+        if (err.name !== "AbortError") {
+          console.error(err);
+          addMessage("system", "Error: " + (err.message || err), null, true);
+        }
       } finally {
-        isGenerating = false;
-        userInput.disabled = false;
-        sendBtn.disabled = false;
-        micBtn.disabled = false;
+        setGeneratingUI(false);
         userInput.focus();
       }
+    }
+
+    function maybeContinueListening() {
+      if (!continuousVoice || !autoSpeak) return;
+      // Wait for speech to finish, then listen again
+      const check = () => {
+        if (window.speechSynthesis && window.speechSynthesis.speaking) {
+          setTimeout(check, 400);
+        } else if (!isGenerating && !isListening) {
+          setTimeout(() => toggleListening(), 500);
+        }
+      };
+      setTimeout(check, 600);
     }
 
     // ---------- Online research helpers ----------
@@ -1420,11 +1617,8 @@ Your job is to improve the result:
 
     async function askBobWithContext(userVisibleText, contextBlock, instruction) {
       if (!engine || isGenerating) return;
-      isGenerating = true;
+      setGeneratingUI(true);
       stopSpeaking();
-      userInput.disabled = true;
-      sendBtn.disabled = true;
-      micBtn.disabled = true;
 
       addMessage("user", userVisibleText);
 
@@ -1453,20 +1647,22 @@ Your job is to improve the result:
         });
         let full = "";
         for await (const chunk of chunks) {
+          if (!isGenerating) break;
           const delta = chunk.choices[0]?.delta?.content || "";
           full += delta;
           updateStreaming(div, full);
         }
         messages.push({ role: "assistant", content: full });
         await saveMessages(messages);
-        speakText(full);
+        finalizeAssistantMessage(div, full);
+        if (full) {
+          speakText(full);
+          maybeContinueListening();
+        }
       } catch (err) {
         updateStreaming(div, "Sorry — online lookup or reply failed: " + (err.message || err));
       } finally {
-        isGenerating = false;
-        userInput.disabled = false;
-        sendBtn.disabled = false;
-        micBtn.disabled = false;
+        setGeneratingUI(false);
         userInput.focus();
       }
     }
@@ -1579,12 +1775,194 @@ Your job is to improve the result:
       }
     }
 
+    // ---------- Extra free tools ----------
+    async function handleCurrency() {
+      if (!engine || isGenerating) {
+        addMessage("system", "Load a model first.", null, true);
+        return;
+      }
+      const raw = prompt("Currency conversion (e.g. 100 USD to THB, or EUR to JPY)", "100 USD to THB");
+      if (!raw || !raw.trim()) return;
+      addMessage("system", `Looking up rates for “${raw.trim()}”…`, null, true);
+      try {
+        // Parse simple patterns
+        const m = raw.trim().match(/([\d.,]+)?\s*([A-Za-z]{3})\s*(?:to|in|->)?\s*([A-Za-z]{3})/i);
+        let amount = 1, from = "USD", to = "THB";
+        if (m) {
+          if (m[1]) amount = parseFloat(m[1].replace(",", ""));
+          from = m[2].toUpperCase();
+          to = m[3].toUpperCase();
+        }
+        const url = `https://api.frankfurter.app/latest?amount=${amount}&from=${from}&to=${to}`;
+        const res = await fetchWithTimeout(url);
+        if (!res.ok) throw new Error("Rate service unavailable");
+        const data = await res.json();
+        const rate = data.rates?.[to];
+        if (rate == null) throw new Error("Unknown currency pair");
+        const context = `Amount: ${amount} ${from}\nTo: ${to}\nResult: ${rate} ${to}\nDate: ${data.date}\nSource: frankfurter.app (ECB rates)`;
+        await askBobWithContext(
+          `💱 ${amount} ${from} → ${to}`,
+          context,
+          `Present this currency conversion clearly and briefly. Mention the date and that rates fluctuate.`
+        );
+      } catch (err) {
+        addMessage("system", "Currency lookup failed: " + (err.message || err), null, true);
+      }
+    }
+
+    async function handleCrypto() {
+      if (!engine || isGenerating) {
+        addMessage("system", "Load a model first.", null, true);
+        return;
+      }
+      const coin = prompt("Crypto coin or id (e.g. bitcoin, ethereum, solana)", "bitcoin");
+      if (!coin || !coin.trim()) return;
+      addMessage("system", `Fetching price for “${coin.trim()}”…`, null, true);
+      try {
+        const id = coin.trim().toLowerCase().replace(/\s+/g, "-");
+        const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(id)}&vs_currencies=usd,thb,eur&include_24hr_change=true&include_market_cap=true`;
+        const res = await fetchWithTimeout(url);
+        if (!res.ok) throw new Error("CoinGecko unavailable");
+        const data = await res.json();
+        const row = data[id];
+        if (!row) throw new Error("Coin not found. Try the CoinGecko id (e.g. bitcoin).");
+        const context = `Coin: ${id}
+USD: $${row.usd}
+THB: ฿${row.thb}
+EUR: €${row.eur}
+24h change: ${row.usd_24h_change?.toFixed(2)}%
+Market cap (USD): ${row.usd_market_cap ? Math.round(row.usd_market_cap).toLocaleString() : "n/a"}
+Source: CoinGecko`;
+        await askBobWithContext(
+          `📈 ${id}`,
+          context,
+          `Summarise this crypto price clearly for a phone screen. Mention 24h change and that prices are volatile.`
+        );
+      } catch (err) {
+        addMessage("system", "Crypto lookup failed: " + (err.message || err), null, true);
+      }
+    }
+
+    async function handleDefine() {
+      if (!engine || isGenerating) {
+        addMessage("system", "Load a model first.", null, true);
+        return;
+      }
+      const word = prompt("Word or short phrase to define");
+      if (!word || !word.trim()) return;
+      addMessage("system", `Looking up “${word.trim()}”…`, null, true);
+      try {
+        // Free Dictionary API
+        const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word.trim())}`;
+        const res = await fetchWithTimeout(url);
+        if (!res.ok) throw new Error("No dictionary entry found");
+        const data = await res.json();
+        const entry = Array.isArray(data) ? data[0] : data;
+        let text = `Word: ${entry.word}\n`;
+        if (entry.phonetic) text += `Phonetic: ${entry.phonetic}\n`;
+        (entry.meanings || []).slice(0, 3).forEach(m => {
+          text += `\n[${m.partOfSpeech}]\n`;
+          (m.definitions || []).slice(0, 2).forEach((d, i) => {
+            text += `${i + 1}. ${d.definition}\n`;
+            if (d.example) text += `   e.g. ${d.example}\n`;
+          });
+        });
+        await askBobWithContext(
+          `📖 Define: ${word.trim()}`,
+          text,
+          `Explain this word/phrase clearly and naturally, using the dictionary data. Give a short example sentence if helpful.`
+        );
+      } catch (err) {
+        // Fallback to Wikipedia / research
+        addMessage("system", "Dictionary miss — trying broader research…", null, true);
+        try {
+          const { context } = await gatherResearchContext(word.trim());
+          await askBobWithContext(
+            `📖 Define: ${word.trim()}`,
+            context,
+            `Define or explain this term clearly using the information above.`
+          );
+        } catch (e2) {
+          addMessage("system", "Lookup failed: " + (err.message || err), null, true);
+        }
+      }
+    }
+
+    async function handleTranslate() {
+      if (!engine || isGenerating) {
+        addMessage("system", "Load a model first.", null, true);
+        return;
+      }
+      const text = prompt("Text to translate");
+      if (!text || !text.trim()) return;
+      const pair = prompt("Target language code (e.g. th, es, fr, ja, zh, de) or full name", "th");
+      if (!pair) return;
+      addMessage("system", "Translating…", null, true);
+      try {
+        // MyMemory free tier (no key for light use)
+        const lang = pair.trim().toLowerCase().slice(0, 5);
+        const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.trim())}&langpair=en|${lang}`;
+        const res = await fetchWithTimeout(url);
+        if (!res.ok) throw new Error("Translate service unavailable");
+        const data = await res.json();
+        const translated = data.responseData?.translatedText || "";
+        if (!translated) throw new Error("No translation returned");
+        const context = `Original (assumed English):\n${text.trim()}\n\nTranslation (${lang}):\n${translated}\n\nSource: MyMemory`;
+        await askBobWithContext(
+          `🌍 Translate → ${lang}`,
+          context,
+          `Present the translation clearly. If the result looks off, note that free translation can be imperfect and offer a polished alternative in your own words.`
+        );
+      } catch (err) {
+        addMessage("system", "Translation failed: " + (err.message || err) + ". You can still ask Bob to translate from knowledge.", null, true);
+      }
+    }
+
+    async function handleSummarizeUrl() {
+      if (!engine || isGenerating) {
+        addMessage("system", "Load a model first.", null, true);
+        return;
+      }
+      const url = prompt("Paste a public URL to summarise");
+      if (!url || !url.trim()) return;
+      let target = url.trim();
+      if (!/^https?:\/\//i.test(target)) target = "https://" + target;
+      addMessage("system", `Fetching “${target}”…`, null, true);
+      try {
+        const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(target)}`;
+        const res = await fetchWithTimeout(proxy, {}, 18000);
+        if (!res.ok) throw new Error("Could not fetch page");
+        const payload = await res.json();
+        let html = payload.contents || "";
+        // Crude text extraction
+        html = html.replace(/<script[\s\S]*?<\/script>/gi, " ")
+                   .replace(/<style[\s\S]*?<\/style>/gi, " ")
+                   .replace(/<[^>]+>/g, " ")
+                   .replace(/\s+/g, " ")
+                   .trim()
+                   .slice(0, 6000);
+        if (html.length < 80) throw new Error("Page text too short or blocked");
+        const context = `URL: ${target}\n\nExtracted text (truncated):\n${html}`;
+        await askBobWithContext(
+          `🔗 Summarize: ${target}`,
+          context,
+          `Summarise this web page in clear bullet points or short paragraphs. Capture the main idea, key facts, and any important caveats. Note that the text was auto-extracted and may be incomplete.`
+        );
+      } catch (err) {
+        addMessage("system", "Could not summarise URL: " + (err.message || err), null, true);
+      }
+    }
+
     document.getElementById("newsChip")?.addEventListener("click", handleNews);
     document.getElementById("researchChip")?.addEventListener("click", handleResearch);
     document.getElementById("webSearchChip")?.addEventListener("click", handleWebSearch);
     document.getElementById("weatherChip")?.addEventListener("click", handleWeather);
+    document.getElementById("currencyChip")?.addEventListener("click", handleCurrency);
+    document.getElementById("cryptoChip")?.addEventListener("click", handleCrypto);
+    document.getElementById("defineChip")?.addEventListener("click", handleDefine);
+    document.getElementById("translateChip")?.addEventListener("click", handleTranslate);
+    document.getElementById("summarizeChip")?.addEventListener("click", handleSummarizeUrl);
 
-    // Clear history
     // Clear history
     clearBtn.addEventListener("click", () => clearModal.classList.add("visible"));
     cancelClear.addEventListener("click", () => clearModal.classList.remove("visible"));
@@ -1614,8 +1992,15 @@ Your job is to improve the result:
       }
     });
 
-    // Mic + settings
+    // Mic + settings + stop
     micBtn.addEventListener("click", toggleListening);
+    document.getElementById("stopBtn")?.addEventListener("click", () => {
+      if (isGenerating) {
+        isGenerating = false;
+        setGeneratingUI(false);
+        addMessage("system", "Generation stopped.", null, true);
+      }
+    });
 
     settingsBtn.addEventListener("click", () => {
       populateVoices();
@@ -1644,6 +2029,26 @@ Your job is to improve the result:
       await setMeta("recogLang", recogLang);
       if (recognition) recognition.lang = recogLang;
     });
+    document.getElementById("continuousVoice")?.addEventListener("change", async (e) => {
+      continuousVoice = !!e.target.checked;
+      await setMeta("continuousVoice", continuousVoice);
+    });
+    document.getElementById("personalitySelect")?.addEventListener("change", async (e) => {
+      personality = e.target.value || "classic";
+      await setMeta("personality", personality);
+    });
+    document.getElementById("exportChatBtn")?.addEventListener("click", () => {
+      const lines = messages.map(m => {
+        const who = m.role === "user" ? "You" : (m.agent ? m.agent : "Bob");
+        return `${who}:\n${m.content}\n`;
+      });
+      const blob = new Blob([lines.join("\n") || "(empty chat)"], { type: "text/plain" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `crazy-bob-chat-${new Date().toISOString().slice(0, 10)}.txt`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
     serperKeyEl?.addEventListener("change", async () => {
       serperKey = (serperKeyEl.value || "").trim();
       await setMeta("serperKey", serperKey);
@@ -1652,7 +2057,6 @@ Your job is to improve the result:
       tavilyKey = (tavilyKeyEl.value || "").trim();
       await setMeta("tavilyKey", tavilyKey);
     });
-    // Also save on blur so partial pastes stick
     serperKeyEl?.addEventListener("blur", async () => {
       serperKey = (serperKeyEl.value || "").trim();
       await setMeta("serperKey", serperKey);
