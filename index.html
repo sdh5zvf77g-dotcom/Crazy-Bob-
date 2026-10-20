@@ -63,6 +63,15 @@
 
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
+    .header-actions { display: flex; gap: 6px; }
+
+    .icon-btn {
+      width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--border);
+      background: var(--surface2); color: var(--text-muted); font-size: 16px;
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+    }
+    .icon-btn:active { opacity: 0.7; }
+
     .model-bar {
       flex-shrink: 0; padding: 10px 16px; background: var(--bg);
       border-bottom: 1px solid var(--border);
@@ -201,6 +210,10 @@
       color: var(--text-muted); font-size: 13px; white-space: nowrap; cursor: pointer;
     }
     .chip:active { background: var(--surface2); }
+    .chip-online {
+      border-color: #38bdf8;
+      color: #7dd3fc;
+    }
 
     .welcome {
       text-align: center; padding: 36px 20px; color: var(--text-muted);
@@ -220,6 +233,23 @@
     .agent-card.planner .name { color: var(--planner); }
     .agent-card.writer .name { color: var(--writer); }
     .agent-card.reviewer .name { color: var(--reviewer); }
+
+    /* Modal */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+      z-index: 100; align-items: center; justify-content: center; padding: 20px;
+    }
+    .modal-overlay.visible { display: flex; }
+    .modal {
+      background: var(--surface); border-radius: 16px; padding: 20px; max-width: 340px; width: 100%;
+      border: 1px solid var(--border);
+    }
+    .modal h3 { margin-bottom: 10px; font-size: 17px; }
+    .modal p { font-size: 14px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.4; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+    .modal-actions button { padding: 10px 16px; }
+    .btn-danger { background: var(--danger); color: white; border-color: var(--danger); }
+    .btn-secondary { background: var(--surface2); }
   </style>
 </head>
 <body>
@@ -233,6 +263,9 @@
           <span id="statusText">Model not loaded</span>
         </div>
       </div>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" id="clearBtn" title="Clear chat history" aria-label="Clear chat">🗑️</button>
     </div>
   </header>
 
@@ -266,7 +299,7 @@
     <div class="welcome" id="welcome">
       <img src="apple-touch-icon.png" alt="Crazy Bob" width="72" height="72" style="border-radius:16px;margin-bottom:12px;" />
       <h2>Crazy Bob</h2>
-      <p>Your slightly unhinged local AI. Load a model, switch to <strong>Team</strong> mode, then describe a problem or ask for a letter. The three agents will collaborate.</p>
+      <p>Your slightly unhinged local AI. Chats are saved on your phone. He can also pull <strong>today's news</strong> and <strong>research topics</strong> online when needed.</p>
       <div class="agents-row">
         <div class="agent-card planner">
           <div class="name">Planner</div>
@@ -281,7 +314,7 @@
           <div class="role">Improves & polishes</div>
         </div>
       </div>
-      <p style="font-size:12px;opacity:0.8;margin-top:12px">On iPhone one model plays all three roles in sequence so memory stays safe.</p>
+      <p style="font-size:12px;opacity:0.8;margin-top:12px">Load a model to start. History is stored locally on this device.</p>
     </div>
   </div>
 
@@ -290,6 +323,8 @@
     <div class="chip" data-prompt="Please write a formal letter for me. Ask any details you need first.">Write a letter</div>
     <div class="chip" data-prompt="Help me draft a polite but firm email.">Draft an email</div>
     <div class="chip" data-prompt="Give me clear step-by-step advice on this situation.">Step-by-step advice</div>
+    <div class="chip chip-online" id="newsChip">📰 Today's news</div>
+    <div class="chip chip-online" id="researchChip">🔍 Research a topic</div>
   </div>
 
   <div class="input-area">
@@ -297,10 +332,103 @@
     <button id="sendBtn" disabled>↑</button>
   </div>
 
+  <!-- Clear confirm modal -->
+  <div class="modal-overlay" id="clearModal">
+    <div class="modal">
+      <h3>Clear chat history?</h3>
+      <p>This will permanently delete all saved conversations on this device. The model cache is not affected.</p>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="cancelClear">Cancel</button>
+        <button class="btn-danger" id="confirmClear">Clear everything</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     import { CreateMLCEngine } from "https://esm.run/@mlc-ai/web-llm@0.2.79";
 
-    // DOM
+    // ---------- IndexedDB helpers (persistent memory) ----------
+    const DB_NAME = "crazy-bob-db";
+    const DB_VERSION = 1;
+    const STORE_MESSAGES = "messages";
+    const STORE_META = "meta";
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(STORE_MESSAGES)) {
+            db.createObjectStore(STORE_MESSAGES, { keyPath: "id", autoIncrement: true });
+          }
+          if (!db.objectStoreNames.contains(STORE_META)) {
+            db.createObjectStore(STORE_META, { keyPath: "key" });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function saveMessages(msgs) {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction([STORE_MESSAGES, STORE_META], "readwrite");
+        const store = tx.objectStore(STORE_MESSAGES);
+        store.clear();
+        // Keep only the last ~80 messages to stay under reasonable storage
+        const toSave = msgs.slice(-80);
+        toSave.forEach((m, i) => store.add({ id: i + 1, role: m.role, content: m.content, agent: m.agent || null }));
+        tx.objectStore(STORE_META).put({ key: "lastSaved", value: Date.now() });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function loadMessages() {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_MESSAGES, "readonly");
+        const req = tx.objectStore(STORE_MESSAGES).getAll();
+        req.onsuccess = () => {
+          const rows = req.result || [];
+          resolve(rows.map(r => ({ role: r.role, content: r.content, agent: r.agent || null })));
+        };
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function clearMessages() {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_MESSAGES, "readwrite");
+        tx.objectStore(STORE_MESSAGES).clear();
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function getUserName() {
+      const db = await openDB();
+      return new Promise((resolve) => {
+        const tx = db.transaction(STORE_META, "readonly");
+        const req = tx.objectStore(STORE_META).get("userName");
+        req.onsuccess = () => resolve(req.result ? req.result.value : null);
+        req.onerror = () => resolve(null);
+      });
+    }
+
+    async function setUserName(name) {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_META, "readwrite");
+        tx.objectStore(STORE_META).put({ key: "userName", value: name });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    // ---------- DOM ----------
     const chatEl = document.getElementById("chat");
     const welcomeEl = document.getElementById("welcome");
     const userInput = document.getElementById("userInput");
@@ -315,17 +443,38 @@
     const quickActions = document.getElementById("quickActions");
     const teamStatus = document.getElementById("teamStatus");
     const modeToggle = document.getElementById("modeToggle");
+    const clearBtn = document.getElementById("clearBtn");
+    const clearModal = document.getElementById("clearModal");
+    const cancelClear = document.getElementById("cancelClear");
+    const confirmClear = document.getElementById("confirmClear");
 
     let engine = null;
     let isGenerating = false;
-    let mode = "single"; // "single" | "team"
+    let mode = "single";
+    let messages = []; // { role, content, agent? }
+    let userName = null; // remembered name
 
-    // Shared conversation history (OpenAI format)
-    let messages = [];
+    function buildSingleSystem() {
+      const nameLine = userName
+        ? `The user's name is ${userName}. Always address them as ${userName} in a natural, friendly way.`
+        : `You do not know the user's name yet. In your first reply, warmly ask what their name is. Once they tell you, use it from then on.`;
+      return `You are Crazy Bob – a helpful but slightly unhinged, energetic AI assistant running privately on the user's iPhone.
+${nameLine}
+You excel at:
+- Discussing personal and practical problems with empathy, humour and good judgment.
+- Writing high-quality letters, emails and formal messages (you can be serious when needed).
+- Giving clear step-by-step advice.
+You can see the conversation history, so use past context when relevant.
+Be concise when appropriate, thorough when needed. Ask clarifying questions if important details are missing. Keep a lively, friendly personality.`;
+    }
 
-    // Agent system prompts
-    const AGENT_PROMPTS = {
-      planner: `You are the Planner agent inside Crazy Bob's team.
+    function buildAgentPrompt(agentKey) {
+      const nameLine = userName
+        ? `The user's name is ${userName}. Address them as ${userName} when appropriate.`
+        : `You do not know the user's name yet.`;
+      const base = {
+        planner: `You are the Planner agent inside Crazy Bob's team.
+${nameLine}
 Your job is only to analyse the user's request and produce a short, clear plan.
 - Identify the goal (problem discussion, letter, email, advice, etc.).
 - List the key facts you still need or the main points that must be covered.
@@ -335,7 +484,8 @@ Your job is only to analyse the user's request and produce a short, clear plan.
 - Keep a slightly energetic tone.
 - End with: "Handing over to Writer."`,
 
-      writer: `You are the Writer agent inside Crazy Bob's team.
+        writer: `You are the Writer agent inside Crazy Bob's team.
+${nameLine}
 You receive the Planner's plan and the original user request.
 Your job is to produce the actual content the user asked for:
 - If they want a letter or email, write a complete, polished draft they can copy.
@@ -345,7 +495,8 @@ Your job is to produce the actual content the user asked for:
 - Do not add meta-commentary about being an AI.
 - End with: "Handing over to Reviewer."`,
 
-      reviewer: `You are the Reviewer agent inside Crazy Bob's team.
+        reviewer: `You are the Reviewer agent inside Crazy Bob's team.
+${nameLine}
 You receive the original request, the Planner's plan, and the Writer's draft.
 Your job is to improve the result:
 - Check tone, clarity, completeness and politeness.
@@ -354,14 +505,30 @@ Your job is to improve the result:
 - If it is advice, return a tightened, clearer version.
 - Be constructive and concise.
 - Start with a one-sentence summary of changes, then give the final polished text.`
-    };
+      };
+      return base[agentKey];
+    }
 
-    const SINGLE_SYSTEM = `You are Crazy Bob – a helpful but slightly unhinged, energetic AI assistant running privately on the user's iPhone.
-You excel at:
-- Discussing personal and practical problems with empathy, humour and good judgment.
-- Writing high-quality letters, emails and formal messages (you can be serious when needed).
-- Giving clear step-by-step advice.
-Be concise when appropriate, thorough when needed. Ask clarifying questions if important details are missing. Keep a lively, friendly personality.`;
+    // Try to detect a name from a short user message (e.g. "Tristan", "I'm Tristan", "My name is Tristan")
+    function tryExtractName(text) {
+      const t = text.trim();
+      if (!t || t.length > 40) return null;
+      const patterns = [
+        /^(?:i(?:'m| am)|my name is|call me|it'?s)\s+([A-Za-z][A-Za-z'\-]{1,20})$/i,
+        /^([A-Za-z][A-Za-z'\-]{1,20})$/
+      ];
+      for (const p of patterns) {
+        const m = t.match(p);
+        if (m) {
+          const name = m[1].replace(/^./, c => c.toUpperCase());
+          // avoid common non-names
+          if (!/^(yes|no|ok|okay|hi|hey|hello|thanks|thank|please|help)$/i.test(name)) {
+            return name;
+          }
+        }
+      }
+      return null;
+    }
 
     // Mode toggle
     modeToggle.querySelectorAll("button").forEach(btn => {
@@ -376,13 +543,11 @@ Be concise when appropriate, thorough when needed. Ask clarifying questions if i
       });
     });
 
-    // Auto-resize
     userInput.addEventListener("input", () => {
       userInput.style.height = "auto";
       userInput.style.height = Math.min(userInput.scrollHeight, 120) + "px";
     });
 
-    // Chips
     document.querySelectorAll(".chip").forEach(chip => {
       chip.addEventListener("click", () => {
         if (!engine || isGenerating) return;
@@ -403,8 +568,8 @@ Be concise when appropriate, thorough when needed. Ask clarifying questions if i
       return d.innerHTML;
     }
 
-    function addMessage(role, content, agent = null) {
-      if (welcomeEl) welcomeEl.remove();
+    function addMessage(role, content, agent = null, skipSave = false) {
+      if (welcomeEl && welcomeEl.parentNode) welcomeEl.remove();
 
       const div = document.createElement("div");
       if (role === "user") {
@@ -414,7 +579,6 @@ Be concise when appropriate, thorough when needed. Ask clarifying questions if i
         div.className = "msg system";
         div.textContent = content;
       } else {
-        // assistant / agent
         const agentClass = agent || "assistant";
         div.className = `msg assistant ${agentClass}`;
         const label = agent
@@ -424,12 +588,42 @@ Be concise when appropriate, thorough when needed. Ask clarifying questions if i
       }
       chatEl.appendChild(div);
       chatEl.scrollTop = chatEl.scrollHeight;
+
+      if (!skipSave && role !== "system") {
+        messages.push({ role, content, agent });
+        saveMessages(messages).catch(console.error);
+      }
       return div;
     }
 
     function updateStreaming(div, text) {
       const content = div.querySelector(".content");
       if (content) content.textContent = text;
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    function renderHistory(saved) {
+      if (!saved || saved.length === 0) return;
+      if (welcomeEl && welcomeEl.parentNode) welcomeEl.remove();
+      messages = saved.slice();
+      for (const m of saved) {
+        if (m.role === "user") {
+          const div = document.createElement("div");
+          div.className = "msg user";
+          div.innerHTML = `<div class="content">${escapeHtml(m.content)}</div>`;
+          chatEl.appendChild(div);
+        } else if (m.role === "assistant") {
+          const agent = m.agent || null;
+          const agentClass = agent || "assistant";
+          const div = document.createElement("div");
+          div.className = `msg assistant ${agentClass}`;
+          const label = agent
+            ? `<div class="label"><span class="agent-badge" style="background:var(--${agent})"></span>${agent.charAt(0).toUpperCase() + agent.slice(1)}</div>`
+            : `<div class="label">Assistant</div>`;
+          div.innerHTML = `${label}<div class="content">${escapeHtml(m.content)}</div>`;
+          chatEl.appendChild(div);
+        }
+      }
       chatEl.scrollTop = chatEl.scrollHeight;
     }
 
@@ -457,7 +651,7 @@ Be concise when appropriate, thorough when needed. Ask clarifying questions if i
           }
         });
 
-        setStatus("ready", "Ready");
+        setStatus("ready", "Ready · history saved");
         progressWrap.classList.remove("visible");
         loadBtn.textContent = "Reload";
         loadBtn.classList.remove("loading");
@@ -468,9 +662,23 @@ Be concise when appropriate, thorough when needed. Ask clarifying questions if i
         quickActions.classList.add("visible");
         userInput.focus();
 
-        // Reset conversation
-        messages = [];
-        addMessage("system", "Crazy Bob is awake! Switch to Team mode if you want Planner + Writer + Reviewer to collaborate.");
+        // Load name + previously saved chat
+        try {
+          userName = await getUserName();
+          const saved = await loadMessages();
+          if (saved.length > 0) {
+            renderHistory(saved);
+            const nameNote = userName ? ` (hi ${userName}!)` : "";
+            addMessage("system", `Restored ${saved.length} previous messages${nameNote}. Bob remembers this conversation.`, null, true);
+          } else if (userName) {
+            addMessage("system", `Crazy Bob is awake, ${userName}! Chats will be saved on this phone.`, null, true);
+          } else {
+            addMessage("system", "Crazy Bob is awake! He'll ask your name so he can call you by it.", null, true);
+          }
+        } catch (e) {
+          console.warn("Could not load history", e);
+          addMessage("system", "Crazy Bob is awake!", null, true);
+        }
       } catch (err) {
         console.error(err);
         setStatus("error", "Failed to load");
@@ -479,21 +687,23 @@ Be concise when appropriate, thorough when needed. Ask clarifying questions if i
         loadBtn.classList.remove("loading");
         loadBtn.disabled = false;
         modelSelect.disabled = false;
-        addMessage("system", "Error: " + (err.message || err));
+        addMessage("system", "Error: " + (err.message || err), null, true);
       }
     }
 
-    async function runAgent(agentName, extraContext = "") {
-      const systemPrompt = AGENT_PROMPTS[agentName];
+    async function runAgent(agentName) {
+      const systemPrompt = buildAgentPrompt(agentName);
+      // Build context from recent messages (skip pure system)
+      const historyForModel = messages
+        .filter(m => m.role === "user" || m.role === "assistant")
+        .map(m => ({ role: m.role, content: m.agent ? `[${m.agent.toUpperCase()}]\n${m.content}` : m.content }));
+
       const agentMessages = [
         { role: "system", content: systemPrompt },
-        ...messages,
+        ...historyForModel
       ];
-      if (extraContext) {
-        agentMessages.push({ role: "user", content: extraContext });
-      }
 
-      const div = addMessage("assistant", "", agentName);
+      const div = addMessage("assistant", "", agentName, true); // skipSave until complete
       const contentEl = div.querySelector(".content");
       contentEl.innerHTML = `<div class="typing"><span></span><span></span><span></span></div>`;
 
@@ -511,8 +721,9 @@ Be concise when appropriate, thorough when needed. Ask clarifying questions if i
         updateStreaming(div, full);
       }
 
-      // Add to shared history so next agents can see it
-      messages.push({ role: "assistant", content: `[${agentName.toUpperCase()}]\n${full}` });
+      // Now persist
+      messages.push({ role: "assistant", content: full, agent: agentName });
+      await saveMessages(messages);
       return full;
     }
 
@@ -526,17 +737,29 @@ Be concise when appropriate, thorough when needed. Ask clarifying questions if i
       userInput.disabled = true;
       sendBtn.disabled = true;
 
-      addMessage("user", text);
-      messages.push({ role: "user", content: text });
+      // Learn name if we don't have one yet
+      if (!userName) {
+        const maybe = tryExtractName(text);
+        if (maybe) {
+          userName = maybe;
+          await setUserName(userName);
+        }
+      }
+
+      addMessage("user", text); // this also saves
 
       try {
         if (mode === "single") {
-          // Classic single chat
+          const historyForModel = messages
+            .filter(m => m.role === "user" || m.role === "assistant")
+            .map(m => ({ role: m.role, content: m.content }));
+
           const singleMessages = [
-            { role: "system", content: SINGLE_SYSTEM },
-            ...messages
+            { role: "system", content: buildSingleSystem() },
+            ...historyForModel
           ];
-          const div = addMessage("assistant", "");
+
+          const div = addMessage("assistant", "", null, true);
           const contentEl = div.querySelector(".content");
           contentEl.innerHTML = `<div class="typing"><span></span><span></span><span></span></div>`;
 
@@ -554,8 +777,8 @@ Be concise when appropriate, thorough when needed. Ask clarifying questions if i
             updateStreaming(div, full);
           }
           messages.push({ role: "assistant", content: full });
+          await saveMessages(messages);
         } else {
-          // TEAM MODE – three agents collaborate
           teamStatus.innerHTML = `Team working: <strong style="color:var(--planner)">Planner</strong> analysing…`;
           await runAgent("planner");
 
@@ -569,7 +792,7 @@ Be concise when appropriate, thorough when needed. Ask clarifying questions if i
         }
       } catch (err) {
         console.error(err);
-        addMessage("system", "Error: " + (err.message || err));
+        addMessage("system", "Error: " + (err.message || err), null, true);
       } finally {
         isGenerating = false;
         userInput.disabled = false;
@@ -578,7 +801,185 @@ Be concise when appropriate, thorough when needed. Ask clarifying questions if i
       }
     }
 
-    // Events
+    // ---------- Online research helpers ----------
+    async function fetchWithTimeout(url, ms = 12000) {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), ms);
+      try {
+        const res = await fetch(url, { signal: ctrl.signal });
+        clearTimeout(t);
+        return res;
+      } catch (e) {
+        clearTimeout(t);
+        throw e;
+      }
+    }
+
+    // Wikipedia summary (CORS-friendly)
+    async function fetchWikipedia(topic) {
+      const title = encodeURIComponent(topic.trim());
+      const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${title}`;
+      const res = await fetchWithTimeout(url);
+      if (!res.ok) throw new Error("Wikipedia page not found");
+      const data = await res.json();
+      return {
+        title: data.title || topic,
+        extract: data.extract || "",
+        url: data.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${title}`
+      };
+    }
+
+    // News via RSS → JSON proxy (BBC World)
+    async function fetchNews() {
+      // Use allorigins to bypass CORS for BBC RSS
+      const rssUrl = encodeURIComponent("https://feeds.bbci.co.uk/news/world/rss.xml");
+      const proxy = `https://api.allorigins.win/get?url=${rssUrl}`;
+      const res = await fetchWithTimeout(proxy, 15000);
+      if (!res.ok) throw new Error("Could not reach news feed");
+      const payload = await res.json();
+      const xml = payload.contents || "";
+      // Simple RSS parse
+      const items = [];
+      const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
+      let match;
+      while ((match = itemRegex.exec(xml)) && items.length < 8) {
+        const block = match[1];
+        const title = (block.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/) || block.match(/<title>(.*?)<\/title>/) || [])[1];
+        const desc = (block.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/) || block.match(/<description>(.*?)<\/description>/) || [])[1];
+        const link = (block.match(/<link>(.*?)<\/link>/) || [])[1];
+        if (title) {
+          items.push({
+            title: title.replace(/<[^>]+>/g, "").trim(),
+            description: (desc || "").replace(/<[^>]+>/g, "").trim().slice(0, 200),
+            link: (link || "").trim()
+          });
+        }
+      }
+      if (items.length === 0) throw new Error("No headlines parsed");
+      return items;
+    }
+
+    async function askBobWithContext(userVisibleText, contextBlock, instruction) {
+      if (!engine || isGenerating) return;
+      isGenerating = true;
+      userInput.disabled = true;
+      sendBtn.disabled = true;
+
+      addMessage("user", userVisibleText);
+
+      const historyForModel = messages
+        .filter(m => m.role === "user" || m.role === "assistant")
+        .map(m => ({ role: m.role, content: m.content }));
+
+      const system = buildSingleSystem() + `\n\nYou have been given fresh online information below. Use it to answer accurately. Mention that the info came from the web if relevant. Do not invent facts beyond the provided text.\n\n--- ONLINE DATA ---\n${contextBlock}\n--- END ---`;
+
+      const singleMessages = [
+        { role: "system", content: system },
+        ...historyForModel,
+        { role: "user", content: instruction }
+      ];
+
+      const div = addMessage("assistant", "", null, true);
+      const contentEl = div.querySelector(".content");
+      contentEl.innerHTML = `<div class="typing"><span></span><span></span><span></span></div>`;
+
+      try {
+        const chunks = await engine.chat.completions.create({
+          messages: singleMessages,
+          stream: true,
+          temperature: 0.6,
+          max_tokens: 1100
+        });
+        let full = "";
+        for await (const chunk of chunks) {
+          const delta = chunk.choices[0]?.delta?.content || "";
+          full += delta;
+          updateStreaming(div, full);
+        }
+        messages.push({ role: "assistant", content: full });
+        await saveMessages(messages);
+      } catch (err) {
+        updateStreaming(div, "Sorry — online lookup or reply failed: " + (err.message || err));
+      } finally {
+        isGenerating = false;
+        userInput.disabled = false;
+        sendBtn.disabled = false;
+        userInput.focus();
+      }
+    }
+
+    async function handleNews() {
+      if (!engine || isGenerating) {
+        addMessage("system", "Load a model first, then try Today's news.", null, true);
+        return;
+      }
+      addMessage("system", "Fetching today's world headlines…", null, true);
+      try {
+        const items = await fetchNews();
+        const context = items.map((it, i) =>
+          `${i + 1}. ${it.title}\n   ${it.description}${it.link ? "\n   Link: " + it.link : ""}`
+        ).join("\n\n");
+        const nameBit = userName ? ` for ${userName}` : "";
+        await askBobWithContext(
+          "📰 What's the news of the day?",
+          context,
+          `Here are today's top world headlines from BBC. Summarise the main stories clearly${nameBit}. Group related topics if useful, keep it readable, and offer to go deeper on any story.`
+        );
+      } catch (err) {
+        addMessage("system", "Could not fetch news (need internet). " + (err.message || err), null, true);
+      }
+    }
+
+    async function handleResearch() {
+      if (!engine || isGenerating) {
+        addMessage("system", "Load a model first, then try Research.", null, true);
+        return;
+      }
+      const topic = prompt("What topic should Bob research?");
+      if (!topic || !topic.trim()) return;
+
+      addMessage("system", `Looking up “${topic.trim()}”…`, null, true);
+      try {
+        const wiki = await fetchWikipedia(topic.trim());
+        const context = `Title: ${wiki.title}\nSummary: ${wiki.extract}\nSource: ${wiki.url}`;
+        const nameBit = userName ? userName + ", " : "";
+        await askBobWithContext(
+          `🔍 Research: ${topic.trim()}`,
+          context,
+          `${nameBit}using the Wikipedia summary above, explain this topic clearly in plain language. Highlight key points, and mention the source. If the summary is thin, say so and suggest what else to look up.`
+        );
+      } catch (err) {
+        // Fallback: still let Bob answer from model knowledge with a note
+        addMessage("system", "Wikipedia lookup failed (" + (err.message || err) + "). Answering from model knowledge only…", null, true);
+        userInput.value = `Please research and explain: ${topic.trim()}`;
+        userInput.dispatchEvent(new Event("input"));
+        await sendMessage();
+      }
+    }
+
+    document.getElementById("newsChip")?.addEventListener("click", handleNews);
+    document.getElementById("researchChip")?.addEventListener("click", handleResearch);
+
+    // Clear history
+    clearBtn.addEventListener("click", () => clearModal.classList.add("visible"));
+    cancelClear.addEventListener("click", () => clearModal.classList.remove("visible"));
+    confirmClear.addEventListener("click", async () => {
+      clearModal.classList.remove("visible");
+      await clearMessages();
+      messages = [];
+      chatEl.innerHTML = "";
+      // re-add welcome
+      const welcome = document.createElement("div");
+      welcome.className = "welcome";
+      welcome.id = "welcome";
+      welcome.innerHTML = `
+        <img src="apple-touch-icon.png" alt="Crazy Bob" width="72" height="72" style="border-radius:16px;margin-bottom:12px;" />
+        <h2>Crazy Bob</h2>
+        <p>Chat history cleared. Load a model and start a new conversation — it will be saved automatically.</p>`;
+      chatEl.appendChild(welcome);
+      addMessage("system", "All past chats deleted from this phone.", null, true);
+    });
+
     loadBtn.addEventListener("click", loadModel);
     sendBtn.addEventListener("click", sendMessage);
     userInput.addEventListener("keydown", (e) => {

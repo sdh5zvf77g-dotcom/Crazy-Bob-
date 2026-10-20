@@ -10,8 +10,10 @@ No cloud. No API keys. Works on iPhone (Safari 26+).
   - **Planner** – analyses & plans
   - **Writer** – drafts letters / advice
   - **Reviewer** – polishes the final result
+- **Persistent chat history** – conversations are saved on the phone (IndexedDB) so Bob remembers past chats
 - Fully offline after the first model download
 - Installable as a Home Screen app on iPhone
+- Clear history button (trash icon) if you want to wipe saved chats
 
 ## Live demo (after you enable GitHub Pages)
 
@@ -24,10 +26,12 @@ https://YOUR-USERNAME.github.io/crazy-bob/
 ## How to put it on GitHub
 
 1. Create a new repository named `crazy-bob` (public is easiest for Pages).
-2. Upload these three files to the root of the repo:
+2. Upload these files to the root of the repo:
    - `index.html`
    - `apple-touch-icon.png`
    - `crazy-bob-icon.png`
+   - `manifest.json`
+   - `README.md`
 3. Go to **Settings → Pages**.
 4. Under **Source**, choose **Deploy from a branch**.
 5. Select branch `main` and folder `/ (root)`.
@@ -41,6 +45,14 @@ https://YOUR-USERNAME.github.io/crazy-bob/
 3. It appears as **Crazy Bob** with the crazy face icon.
 4. Choose a model (Llama 3.2 1B recommended) → **Load**.
 5. Switch to **Team** mode if you want the three agents.
+
+## Memory notes
+
+- Chat history is stored locally in the browser (IndexedDB) on your phone.
+- Last ~80 messages are kept so storage stays reasonable.
+- The model itself is also cached after the first download.
+- Use the trash icon to clear all saved chats if needed.
+- History is tied to the site origin (your GitHub Pages URL).
 
 ## Models
 
