@@ -428,6 +428,26 @@
       });
     }
 
+    async function getLastModel() {
+      const db = await openDB();
+      return new Promise((resolve) => {
+        const tx = db.transaction(STORE_META, "readonly");
+        const req = tx.objectStore(STORE_META).get("lastModel");
+        req.onsuccess = () => resolve(req.result ? req.result.value : null);
+        req.onerror = () => resolve(null);
+      });
+    }
+
+    async function setLastModel(modelId) {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_META, "readwrite");
+        tx.objectStore(STORE_META).put({ key: "lastModel", value: modelId });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
     // ---------- DOM ----------
     const chatEl = document.getElementById("chat");
     const welcomeEl = document.getElementById("welcome");
@@ -627,16 +647,16 @@ Your job is to improve the result:
       chatEl.scrollTop = chatEl.scrollHeight;
     }
 
-    async function loadModel() {
+    async function loadModel(auto = false) {
       const selected = modelSelect.value;
       loadBtn.disabled = true;
       loadBtn.classList.add("loading");
       loadBtn.textContent = "Loading…";
       modelSelect.disabled = true;
-      setStatus("loading", "Downloading / loading model…");
+      setStatus("loading", auto ? "Restoring model from cache…" : "Downloading / loading model…");
       progressWrap.classList.add("visible");
       progressFill.style.width = "0%";
-      progressText.textContent = "Starting…";
+      progressText.textContent = auto ? "Opening cached model…" : "Starting…";
 
       try {
         if (!navigator.gpu) {
@@ -647,9 +667,16 @@ Your job is to improve the result:
           initProgressCallback: (report) => {
             const pct = Math.round((report.progress || 0) * 100);
             progressFill.style.width = pct + "%";
-            progressText.textContent = report.text || `${pct}%`;
+            // WebLLM reports cache hits in the text
+            const text = report.text || `${pct}%`;
+            progressText.textContent = text;
+            if (/cache|Cached|fetching cache/i.test(text)) {
+              setStatus("loading", "Loading from cache…");
+            }
           }
         });
+
+        await setLastModel(selected);
 
         setStatus("ready", "Ready · history saved");
         progressWrap.classList.remove("visible");
@@ -980,7 +1007,7 @@ Your job is to improve the result:
       addMessage("system", "All past chats deleted from this phone.", null, true);
     });
 
-    loadBtn.addEventListener("click", loadModel);
+    loadBtn.addEventListener("click", () => loadModel(false));
     sendBtn.addEventListener("click", sendMessage);
     userInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
@@ -990,6 +1017,22 @@ Your job is to improve the result:
     });
 
     setStatus("", "Model not loaded");
+
+    // Auto-restore last model so you don't have to press Load every time
+    (async () => {
+      try {
+        const last = await getLastModel();
+        if (last) {
+          // Select it in the dropdown if present
+          const opt = [...modelSelect.options].find(o => o.value === last);
+          if (opt) modelSelect.value = last;
+          // Small delay so UI is painted
+          setTimeout(() => loadModel(true), 400);
+        }
+      } catch (e) {
+        console.warn("Auto-load skipped", e);
+      }
+    })();
   </script>
 </body>
 </html>
